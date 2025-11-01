@@ -28,3 +28,5 @@ dev-dist
 # Environment files (backend)
 backend/.env
 backend/.env.*
+
+http-api

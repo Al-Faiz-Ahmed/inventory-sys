@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
+import { authApi } from '@/lib/api';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export function Login() {
     clearError();
     
     try {
-      await login({ email, password });
+      login({email,password})
       navigate('/');
     } catch (error) {
       // Error is handled by the store
