@@ -1,12 +1,13 @@
 // src/models/product.ts
 import { pgTable, uuid, text, varchar, integer, decimal, timestamp } from "drizzle-orm/pg-core";
+import { productCategories } from "./product-categories";
 
 export const products = pgTable("products", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	name: varchar("name", { length: 255 }).notNull(),
 	description: text("description"),
 	sku: varchar("sku", { length: 100 }).notNull().unique(),
-	category: varchar("category", { length: 100 }).notNull(),
+	categoryId: uuid("category_id").notNull().references(() => productCategories.id),
 	price: decimal("price", { precision: 10, scale: 2 }).notNull(),
 	cost: decimal("cost", { precision: 10, scale: 2 }).notNull(),
 	quantity: integer("quantity").notNull().default(0),
