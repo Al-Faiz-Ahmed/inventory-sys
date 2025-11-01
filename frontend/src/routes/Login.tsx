@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
-import { authApi } from '@/lib/api';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -14,16 +13,25 @@ export function Login() {
   const { login, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    if (isLoading) {
+      return;
+    }
+    
     clearError();
     
     try {
-      login({email,password})
+      await login({ email, password });
       navigate('/');
     } catch (error) {
       // Error is handled by the store
+      console.error('Login error:', error);
     }
+    
+    return false;
   };
 
   return (

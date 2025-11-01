@@ -19,10 +19,10 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: {
-        id:"kasdnfdasnfv",
-        email:"faiz@gmail.com",
-        name:"faiz",
-        role:"admin"
+        id:"",
+        email:"",
+        name:"",
+        role:"user"
       },
       token: null,
       isAuthenticated: true,
@@ -43,8 +43,10 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('token', response.token);
           localStorage.setItem('user', JSON.stringify(response.user));
         } catch (error: any) {
+          console.log(error)
+          const errorMessage = error?.message || error?.response?.data?.message || 'Login failed';
           set({
-            error: error.response?.data?.message || 'Login failed',
+            error: errorMessage,
             isLoading: false,
           });
           throw error;

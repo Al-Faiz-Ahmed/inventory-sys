@@ -41,7 +41,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Don't redirect on login endpoint - let it handle the error naturally
+    const isLoginEndpoint = error.config?.url?.includes('/auth/login');
+    
+    if (error.response?.status === 401 && !isLoginEndpoint) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";
@@ -53,11 +56,28 @@ api.interceptors.response.use(
 // Auth API
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response: AxiosResponse<ApiEnvelope<AuthResponse>> = await api.post(
-      "/auth/login",
-      credentials
-    );
-    return unwrap(response);
+    try {
+      const response: AxiosResponse<ApiEnvelope<AuthResponse>> = await api.post(
+        "/auth/login",
+        credentials
+      );
+      return unwrap(response);
+    } catch (error: any) {
+      // Handle axios errors - axios treats 4xx/5xx as errors
+      // Check if we got an ApiEnvelope response (our backend format)
+      if (error.response?.data && typeof error.response.data === 'object') {
+        const envelope = error.response.data as ApiEnvelope<AuthResponse>;
+        // If it has the ApiEnvelope structure with error field, extract the message
+        if (envelope.error !== undefined) {
+          const errorMsg = envelope.message || envelope.error?.message || 'Login failed';
+          const apiError = new Error(errorMsg);
+          (apiError as any).response = error.response;
+          throw apiError;
+        }
+      }
+      // For network errors or other axios errors, use the axios error message
+      throw error;
+    }
   },
 
   getMe: async (): Promise<User> => {
@@ -232,8 +252,13 @@ export default api;
 function unwrap<T>(response: AxiosResponse<ApiEnvelope<T>>): T {
   const body = response.data;
   if (body.error) {
-    const msg = body.message || 'Request failed';
-    throw new Error(msg);
+    const msg = body.message || body.error.message || 'Request failed';
+    const error = new Error(msg);
+    (error as any).errorDetails = body.error;
+    throw error;
+  }
+  if (body.data === null) {
+    throw new Error('No data returned from server');
   }
   return body.data as T;
 }

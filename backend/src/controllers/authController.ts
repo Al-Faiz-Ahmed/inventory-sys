@@ -65,7 +65,7 @@ export const login = async (req: Request, res: Response) => {
     // check password
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
-      const err = makeApiError('UNAUTHORIZED', 'Invalid credentials', { status: 401 });
+      const err = makeApiError('UNAUTHORIZED', 'Passowrd Mismatch', { status: 401 });
       return res.status(401).json(fail(err));
     }
 
