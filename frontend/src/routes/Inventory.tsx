@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { AddProductModal } from '@/components/AddProductModal';
 import { formatCurrency } from '@/lib/helpers';
 import { categoriesApi } from '@/lib/api';
 import type { Category, Product } from '@/lib/types';
@@ -53,6 +54,7 @@ export function Inventory() {
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoriesFetched, setCategoriesFetched] = useState(() => loadCategoriesFromStorage().length > 0);
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
 
   // Fetch products when a category is opened
   useEffect(() => {
@@ -182,9 +184,15 @@ export function Inventory() {
           <Button onClick={() => setIsAddCategoryDialogOpen(true)}>
             Add Category
           </Button>
-          <Button>Add Product</Button>
+          <Button onClick={() => setIsAddProductModalOpen(true)}>Add Product</Button>
         </div>
       </div>
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        open={isAddProductModalOpen}
+        onOpenChange={setIsAddProductModalOpen}
+      />
 
       {/* Search Filter */}
       <Card>
