@@ -208,4 +208,28 @@ export interface ExpensesFilters {
   category?: string;
 }
 
+// Supplier types
+export interface Supplier {
+  id: string;
+  name: string;
+  contactNumber?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  bankAccNo?: string;
+  bankAccName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierFormData {
+  name: string;
+  contactNumber?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  bankAccNo?: string;
+  bankAccName?: string;
+}
+
 

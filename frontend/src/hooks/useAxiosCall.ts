@@ -24,7 +24,12 @@ export function useAxiosCall() {
       return response.data;
     } catch (err) {
       const axiosError = err as AxiosError;
-      const errorMessage = axiosError.response?.data?.message || axiosError.message || 'An error occurred';
+      let errorMessage = 'An error occurred';
+      if (axiosError.response?.data?.message) {
+        errorMessage = axiosError.response.data.message;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
       options?.onError?.(axiosError);
       return null;

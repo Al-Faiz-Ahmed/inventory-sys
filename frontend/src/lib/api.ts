@@ -13,9 +13,10 @@ import type {
   Sale,
   Purchase,
   Expense,
+  Supplier,
+  SupplierFormData,
   ReportSummary,
   ReportFilters,
-  PaginatedResponse,
 } from "../../../shared/types";
 import type { ApiEnvelope } from "../../../shared/error";
 
@@ -296,6 +297,45 @@ export const productCategoriesApi = {
       `/product-categories/${id}`
     );
     return unwrap(response);
+  },
+};
+
+// Suppliers API
+export const suppliersApi = {
+  getSuppliers: async (): Promise<Supplier[]> => {
+    const response: AxiosResponse<ApiEnvelope<Supplier[]>> = await api.get("/suppliers");
+    return unwrap(response);
+  },
+
+  getSupplier: async (id: string): Promise<Supplier> => {
+    const response: AxiosResponse<ApiEnvelope<Supplier>> = await api.get(`/suppliers/${id}`);
+    return unwrap(response);
+  },
+
+  createSupplier: async (
+    supplier: SupplierFormData
+  ): Promise<Supplier> => {
+    const response: AxiosResponse<ApiEnvelope<Supplier>> = await api.post(
+      "/suppliers",
+      supplier
+    );
+    return unwrap(response);
+  },
+
+  updateSupplier: async (
+    id: string,
+    supplier: Partial<SupplierFormData>
+  ): Promise<Supplier> => {
+    const response: AxiosResponse<ApiEnvelope<Supplier>> = await api.put(
+      `/suppliers/${id}`,
+      supplier
+    );
+    return unwrap(response);
+  },
+
+  deleteSupplier: async (id: string): Promise<void> => {
+    const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/suppliers/${id}`);
+    unwrap(response);
   },
 };
 

@@ -104,10 +104,9 @@ export function Inventory() {
       setIsDeleting(true);
       await inventoryApi.deleteProduct(productToDelete.id);
       // Optimistically remove from state
+      const categoryId = (productToDelete as any).categoryId || (productToDelete.category as any);
       setCategoryProducts((prev) => {
         const newMap = { ...prev };
-        const list = newMap[productToDelete.category as any] || newMap[(productToDelete as any).categoryId] || [];
-        const categoryId = (productToDelete as any).categoryId || (productToDelete.category as any);
         if (categoryId && newMap[categoryId]) {
           newMap[categoryId] = newMap[categoryId].filter(p => p.id !== productToDelete.id);
         } else {
@@ -118,11 +117,16 @@ export function Inventory() {
         }
         return newMap;
       });
+      // Refresh the products for the category
+      if (categoryId && openCategories.includes(categoryId)) {
+        await fetchCategoryProducts(categoryId);
+      }
       setIsDeleteDialogOpen(false);
       setProductToDelete(null);
     } catch (error) {
       console.error('Failed to delete product:', error);
-      alert((error as any)?.message || 'Failed to delete product');
+      setIsDeleteDialogOpen(false);
+      setProductToDelete(null);
     } finally {
       setIsDeleting(false);
     }
