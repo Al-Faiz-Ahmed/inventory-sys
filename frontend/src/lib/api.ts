@@ -5,6 +5,8 @@ import type {
   LoginCredentials,
   User,
   Product,
+  ProductCategory,
+  ProductFormData,
   Sale,
   Purchase,
   Expense,
@@ -99,7 +101,7 @@ export const inventoryApi = {
   },
 
   createProduct: async (
-    product: Omit<Product, "id" | "createdAt" | "updatedAt">
+    product: ProductFormData
   ): Promise<Product> => {
     const response: AxiosResponse<ApiEnvelope<Product>> = await api.post(
       "/inventory",
@@ -230,6 +232,23 @@ export const expensesApi = {
   deleteExpense: async (id: string): Promise<void> => {
     const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/expenses/${id}`);
     unwrap(response);
+  },
+};
+
+// Product Categories API
+export const productCategoriesApi = {
+  getCategories: async (): Promise<ProductCategory[]> => {
+    const response: AxiosResponse<ApiEnvelope<ProductCategory[]>> = await api.get(
+      "/product-categories"
+    );
+    return unwrap(response);
+  },
+
+  getCategory: async (id: string): Promise<ProductCategory> => {
+    const response: AxiosResponse<ApiEnvelope<ProductCategory>> = await api.get(
+      `/product-categories/${id}`
+    );
+    return unwrap(response);
   },
 };
 

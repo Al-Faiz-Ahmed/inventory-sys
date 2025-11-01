@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { AddProductModal } from '@/components/AddProductModal';
 import { formatCurrency } from '@/lib/helpers';
 import type { Product } from '@/lib/types';
 
@@ -58,6 +59,7 @@ const mockProducts: Product[] = [
 export function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
 
   const categories = Array.from(new Set(mockProducts.map(p => p.category)));
 
@@ -91,8 +93,14 @@ export function Inventory() {
             Manage your products and stock levels
           </p>
         </div>
-        <Button>Add Product</Button>
+        <Button onClick={() => setIsAddProductModalOpen(true)}>Add Product</Button>
       </div>
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        open={isAddProductModalOpen}
+        onOpenChange={setIsAddProductModalOpen}
+      />
 
       {/* Filters */}
       <Card>
