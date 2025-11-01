@@ -16,6 +16,20 @@ export interface LoginCredentials {
   password: string;
 }
 
+// Category types
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryFormData {
+  name: string;
+  description?: string;
+}
+
 // Inventory types
 export interface Product {
   id: string;

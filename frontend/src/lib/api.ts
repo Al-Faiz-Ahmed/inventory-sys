@@ -5,6 +5,8 @@ import type {
   LoginCredentials,
   User,
   Product,
+  Category,
+  CategoryFormData,
   Sale,
   Purchase,
   Expense,
@@ -82,6 +84,50 @@ export const authApi = {
 
   getMe: async (): Promise<User> => {
     const response: AxiosResponse<ApiEnvelope<User>> = await api.get("/auth/me");
+    return unwrap(response);
+  },
+};
+
+// Categories API
+export const categoriesApi = {
+  getCategories: async (): Promise<Category[]> => {
+    const response: AxiosResponse<ApiEnvelope<Category[]>> = await api.get("/categories");
+    return unwrap(response);
+  },
+
+  getCategory: async (id: string): Promise<Category> => {
+    const response: AxiosResponse<ApiEnvelope<Category>> = await api.get(`/categories/${id}`);
+    return unwrap(response);
+  },
+
+  createCategory: async (
+    category: CategoryFormData
+  ): Promise<Category> => {
+    const response: AxiosResponse<ApiEnvelope<Category>> = await api.post(
+      "/categories",
+      category
+    );
+    return unwrap(response);
+  },
+
+  updateCategory: async (
+    id: string,
+    category: Partial<CategoryFormData>
+  ): Promise<Category> => {
+    const response: AxiosResponse<ApiEnvelope<Category>> = await api.put(
+      `/categories/${id}`,
+      category
+    );
+    return unwrap(response);
+  },
+
+  deleteCategory: async (id: string): Promise<void> => {
+    const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/categories/${id}`);
+    unwrap(response);
+  },
+
+  getCategoryProducts: async (id: string): Promise<Product[]> => {
+    const response: AxiosResponse<ApiEnvelope<Product[]>> = await api.get(`/categories/${id}/products`);
     return unwrap(response);
   },
 };
