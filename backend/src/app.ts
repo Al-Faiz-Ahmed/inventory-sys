@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
+import inventoryRoutes from "./routes/inventoryRoutes";
 import { authenticate } from "./middleware/authMiddleware";
 
 dotenv.config();
@@ -14,6 +15,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 // Basic root route
 app.get("/", (_req, res) => {

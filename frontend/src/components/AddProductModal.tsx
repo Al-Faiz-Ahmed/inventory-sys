@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -15,8 +15,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectOption } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { inventoryApi, productCategoriesApi } from '@/lib/api';
-import type { ProductFormData } from '@/lib/types';
+import { categoriesApi, inventoryApi } from '@/lib/api';
+import type { Category, ProductFormData } from '@/lib/types';
 
 interface AddProductModalProps {
   open: boolean;
@@ -26,7 +26,7 @@ interface AddProductModalProps {
 interface FormErrors {
   name?: string;
   sku?: string;
-  categoryId?: string;
+  category?: string;
   price?: string;
   cost?: string;
   quantity?: string;
@@ -55,7 +55,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
   // Fetch product categories
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: ['product-categories'],
-    queryFn: () => productCategoriesApi.getCategories(),
+    queryFn: () => categoriesApi.getCategories() as Promise<Category[]>,
     enabled: open,
   });
 
@@ -92,7 +92,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
     }
 
     if (!formData.categoryId) {
-      newErrors.categoryId = 'Product category is required';
+      newErrors.category = 'Product category is required';
     }
 
     if (!formData.price || formData.price <= 0) {
@@ -239,7 +239,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
               placeholder="Enter product name"
               aria-invalid={touched.name && !!errors.name}
               aria-describedby={touched.name && errors.name ? 'name-error' : undefined}
-              error={touched.name && !!errors.name}
+              // error={touched.name && !!errors.name}
               required
             />
               {touched.name && errors.name && (
@@ -277,7 +277,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
               placeholder="e.g., PROD-001"
               aria-invalid={touched.sku && !!errors.sku}
               aria-describedby={touched.sku && errors.sku ? 'sku-error' : undefined}
-              error={touched.sku && !!errors.sku}
+              // error={touched.sku && !!errors.sku}
               required
             />
             {touched.sku && errors.sku && (
@@ -289,7 +289,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
 
             {/* Category */}
             <div className="space-y-2">
-              <Label htmlFor="categoryId">
+              <Label htmlFor="category">
                 Product Category <span className="text-destructive">*</span>
               </Label>
               {categoriesLoading ? (
@@ -300,16 +300,16 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
               ) : (
                 <>
                   <Select
-                    id="categoryId"
+                    id="category"
                     name="categoryId"
                     value={formData.categoryId}
                     onChange={handleChange}
-                    onBlur={() => handleBlur('categoryId')}
-                    aria-invalid={touched.categoryId && !!errors.categoryId}
+                    onBlur={() => handleBlur('category')}
+                    aria-invalid={touched.category && !!errors.category}
                     aria-describedby={
-                      touched.categoryId && errors.categoryId ? 'categoryId-error' : undefined
+                      touched.category && errors.category ? 'category-error' : undefined
                     }
-                    error={touched.categoryId && !!errors.categoryId}
+                    error={touched.category && !!errors.category}
                     required
                   >
                     <SelectOption value="">Select a category</SelectOption>
@@ -319,13 +319,13 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                       </SelectOption>
                     ))}
                   </Select>
-                  {touched.categoryId && errors.categoryId && (
+                  {touched.category && errors.category && (
                     <p
-                      id="categoryId-error"
+                      id="category-error"
                       className="text-sm text-destructive mt-1"
                       role="alert"
                     >
-                      {errors.categoryId}
+                      {errors.category}
                     </p>
                   )}
                 </>
@@ -363,7 +363,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                     aria-describedby={
                       touched.price && errors.price ? 'price-error' : undefined
                     }
-                    error={touched.price && !!errors.price}
+                    // error={touched.price && !!errors.price}
                     required
                   />
                 </div>
@@ -396,7 +396,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                     className="pl-8"
                     aria-invalid={touched.cost && !!errors.cost}
                     aria-describedby={touched.cost && errors.cost ? 'cost-error' : undefined}
-                    error={touched.cost && !!errors.cost}
+                    // error={touched.cost && !!errors.cost}
                     required
                   />
                 </div>
@@ -431,7 +431,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   aria-describedby={
                     touched.quantity && errors.quantity ? 'quantity-error' : undefined
                   }
-                  error={touched.quantity && !!errors.quantity}
+                  // error={touched.quantity && !!errors.quantity}
                 />
                 {touched.quantity && errors.quantity && (
                   <p id="quantity-error" className="text-sm text-destructive mt-1" role="alert">
@@ -456,7 +456,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   aria-describedby={
                     touched.minQuantity && errors.minQuantity ? 'minQuantity-error' : undefined
                   }
-                  error={touched.minQuantity && !!errors.minQuantity}
+                  // error={touched.minQuantity && !!errors.minQuantity}
                 />
                 {touched.minQuantity && errors.minQuantity && (
                   <p id="minQuantity-error" className="text-sm text-destructive mt-1" role="alert">
@@ -481,7 +481,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   aria-describedby={
                     touched.maxQuantity && errors.maxQuantity ? 'maxQuantity-error' : undefined
                   }
-                  error={touched.maxQuantity && !!errors.maxQuantity}
+                  // error={touched.maxQuantity && !!errors.maxQuantity}
                 />
                 {touched.maxQuantity && errors.maxQuantity && (
                   <p id="maxQuantity-error" className="text-sm text-destructive mt-1" role="alert">
@@ -544,5 +544,4 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
       </DialogContent>
     </Dialog>
   );
-}
-
+};
