@@ -33,6 +33,14 @@ export interface CategoryFormData {
 }
 
 // Inventory types
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -53,7 +61,7 @@ export interface ProductFormData {
   name: string;
   description?: string;
   sku: string;
-  category: string;
+  categoryId: string;
   price: number;
   cost: number;
   quantity: number;

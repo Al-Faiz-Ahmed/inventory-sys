@@ -14,8 +14,10 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { AddProductModal } from '@/components/AddProductModal';
+import { EditProductModal } from '@/components/EditProductModal';
 import { formatCurrency } from '@/lib/helpers';
-import { categoriesApi } from '@/lib/api';
+import { categoriesApi, inventoryApi } from '@/lib/api';
 import type { Category, Product } from '@/lib/types';
 
 const CATEGORIES_STORAGE_KEY = 'inventory_categories';
@@ -53,6 +55,14 @@ export function Inventory() {
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoriesFetched, setCategoriesFetched] = useState(() => loadCategoriesFromStorage().length > 0);
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [categoryErrors, setCategoryErrors] = useState<{ name?: string; _general?: string }>({});
+  const [categoryTouched, setCategoryTouched] = useState<Record<string, boolean>>({});
 
   // Fetch products when a category is opened
   useEffect(() => {
@@ -78,6 +88,46 @@ export function Inventory() {
     }
   };
 
+  const openEditProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsEditProductModalOpen(true);
+  };
+
+  const openDeleteDialog = (product: Product) => {
+    setProductToDelete(product);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+    try {
+      setIsDeleting(true);
+      await inventoryApi.deleteProduct(productToDelete.id);
+      // Optimistically remove from state
+      setCategoryProducts((prev) => {
+        const newMap = { ...prev };
+        const list = newMap[productToDelete.category as any] || newMap[(productToDelete as any).categoryId] || [];
+        const categoryId = (productToDelete as any).categoryId || (productToDelete.category as any);
+        if (categoryId && newMap[categoryId]) {
+          newMap[categoryId] = newMap[categoryId].filter(p => p.id !== productToDelete.id);
+        } else {
+          // Fallback: scan all categories and remove
+          Object.keys(newMap).forEach(cid => {
+            newMap[cid] = newMap[cid].filter(p => p.id !== productToDelete.id);
+          });
+        }
+        return newMap;
+      });
+      setIsDeleteDialogOpen(false);
+      setProductToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      alert((error as any)?.message || 'Failed to delete product');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleRefresh = async () => {
     await fetchCategories();
     // Clear cached products to force refresh when categories are re-opened
@@ -97,29 +147,51 @@ export function Inventory() {
     }
   };
 
-  const handleAddCategory = async () => {
+  const validateCategory = (): boolean => {
+    const errs: { name?: string } = {};
     if (!newCategoryName.trim()) {
-      alert('Category name is required');
-      return;
+      errs.name = 'Category name is required';
+    } else if (newCategoryName.trim().length < 2) {
+      errs.name = 'Category name must be at least 2 characters';
     }
+    setCategoryErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
+  const handleCategoryBlur = (field: string) => {
+    setCategoryTouched((prev) => ({ ...prev, [field]: true }));
+    validateCategory();
+  };
+
+  const handleCloseAddCategory = () => {
+    setNewCategoryName('');
+    setNewCategoryDescription('');
+    setCategoryErrors({});
+    setCategoryTouched({});
+    setIsAddCategoryDialogOpen(false);
+  };
+
+  const handleAddCategory = async () => {
+    if (!validateCategory()) return;
     try {
       setIsSubmitting(true);
       await categoriesApi.createCategory({
         name: newCategoryName.trim(),
         description: newCategoryDescription.trim() || undefined,
       });
-      setNewCategoryName('');
-      setNewCategoryDescription('');
-      setIsAddCategoryDialogOpen(false);
-      // Refresh categories after adding a new one (this will also save to localStorage)
+      handleCloseAddCategory();
       await fetchCategories();
     } catch (error: any) {
       console.error('Failed to create category:', error);
-      alert(error.message || 'Failed to create category');
+      setCategoryErrors({ _general: error?.message || 'Failed to create category' });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const onSubmitAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleAddCategory();
   };
 
   const getStockStatus = (product: Product) => {
@@ -182,9 +254,41 @@ export function Inventory() {
           <Button onClick={() => setIsAddCategoryDialogOpen(true)}>
             Add Category
           </Button>
-          <Button>Add Product</Button>
+          <Button onClick={() => setIsAddProductModalOpen(true)}>Add Product</Button>
         </div>
       </div>
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        open={isAddProductModalOpen}
+        onOpenChange={setIsAddProductModalOpen}
+      />
+
+      {/* Edit Product Modal */}
+      <EditProductModal
+        open={isEditProductModalOpen}
+        onOpenChange={setIsEditProductModalOpen}
+        product={selectedProduct ? ({
+          id: selectedProduct.id,
+          name: selectedProduct.name,
+          description: selectedProduct.description,
+          sku: selectedProduct.sku,
+          categoryId: (selectedProduct as any).categoryId || (selectedProduct as any).category || '',
+          price: Number((selectedProduct as any).price),
+          cost: Number((selectedProduct as any).cost),
+          quantity: Number((selectedProduct as any).quantity),
+          minQuantity: Number((selectedProduct as any).minQuantity),
+          maxQuantity: Number((selectedProduct as any).maxQuantity),
+          supplier: selectedProduct.supplier,
+        }) : null}
+        onUpdated={() => {
+          // After update, refresh products in opened categories
+          if (selectedProduct) {
+            const cid = (selectedProduct as any).categoryId || (selectedProduct as any).category;
+            if (cid) fetchCategoryProducts(cid);
+          }
+        }}
+      />
 
       {/* Search Filter */}
       <Card>
@@ -302,8 +406,8 @@ export function Inventory() {
                                     </td>
                                     <td className="p-4">
                                       <div className="flex space-x-2">
-                                        <Button variant="outline" size="sm">Edit</Button>
-                                        <Button variant="destructive" size="sm">Delete</Button>
+                                        <Button variant="outline" size="sm" onClick={() => openEditProduct(product)}>Edit</Button>
+                                        <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(product)}>Delete</Button>
                                       </div>
                                     </td>
                                   </tr>
@@ -318,51 +422,125 @@ export function Inventory() {
                 );
               })}
             </Accordion>
-          )}
+          )
+        }
         </CardContent>
       </Card>
 
       {/* Add Category Dialog */}
-      <Dialog open={isAddCategoryDialogOpen} onOpenChange={setIsAddCategoryDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Category</DialogTitle>
-            <DialogDescription>
+      <Dialog
+        open={isAddCategoryDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseAddCategory();
+          } else {
+            setIsAddCategoryDialogOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0 scrollbar-hide">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <DialogTitle className="text-2xl font-semibold">Add New Category</DialogTitle>
+            <DialogDescription className="text-base text-muted-foreground mt-1">
               Create a new product category to organize your inventory.
             </DialogDescription>
+            <DialogClose onClick={handleCloseAddCategory} />
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="category-name">Category Name *</Label>
-              <Input
-                id="category-name"
-                placeholder="e.g., Electronics, Accessories"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                disabled={isSubmitting}
-              />
+
+          <form id="category-form" onSubmit={onSubmitAddCategory} className="px-6 py-6">
+            {categoryErrors._general && (
+              <div
+                className="p-4 mb-6 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md"
+                role="alert"
+                aria-live="polite"
+              >
+                {categoryErrors._general}
+              </div>
+            )}
+
+            <div className="space-y-6">
+              <div className="space-y-5">
+                <h3 className="text-lg font-semibold text-foreground pb-2 border-b border-border">
+                  Basic Information
+                </h3>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category-name">
+                    Category Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="category-name"
+                    placeholder="e.g., Electronics, Accessories"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onBlur={() => handleCategoryBlur('name')}
+                    aria-invalid={categoryTouched.name && !!categoryErrors.name}
+                    aria-describedby={categoryTouched.name && categoryErrors.name ? 'category-name-error' : undefined}
+                    disabled={isSubmitting}
+                    required
+                  />
+                  {categoryTouched.name && categoryErrors.name && (
+                    <p id="category-name-error" className="text-sm text-destructive mt-1" role="alert">
+                      {categoryErrors.name}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category-description">Description</Label>
+                  <Input
+                    id="category-description"
+                    placeholder="Optional description for this category"
+                    value={newCategoryDescription}
+                    onChange={(e) => setNewCategoryDescription(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="category-description">Description</Label>
-              <Input
-                id="category-description"
-                placeholder="Optional description for this category"
-                value={newCategoryDescription}
-                onChange={(e) => setNewCategoryDescription(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose onClick={() => {
-              setNewCategoryName('');
-              setNewCategoryDescription('');
-            }}>
+          </form>
+
+          <DialogFooter className="px-6 py-4 border-t border-border bg-muted/30 gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseAddCategory}
+              disabled={isSubmitting}
+              className="min-w-[100px]"
+            >
               Cancel
-            </DialogClose>
-            <Button onClick={handleAddCategory} disabled={isSubmitting || !newCategoryName.trim()}>
+            </Button>
+            <Button
+              type="submit"
+              form="category-form"
+              disabled={isSubmitting}
+              className="min-w-[140px]"
+            >
               {isSubmitting ? 'Creating...' : 'Create Category'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Product Confirmation */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <DialogTitle className="text-xl font-semibold">Delete Product</DialogTitle>
+            <DialogDescription className="text-base text-muted-foreground mt-1">
+              Are you sure you want to delete this product? This action cannot be undone.
+            </DialogDescription>
+            <DialogClose onClick={() => setIsDeleteDialogOpen(false)} />
+          </DialogHeader>
+          <div className="px-6 py-6">
+            <p className="text-sm">
+              Product: <span className="font-medium">{productToDelete?.name}</span>
+            </p>
+            <p className="text-sm text-muted-foreground">SKU: {productToDelete?.sku}</p>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t border-border bg-muted/30 gap-3">
+            <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting} className="min-w-[100px]">Cancel</Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteProduct} disabled={isDeleting} className="min-w-[140px]">{isDeleting ? 'Deleting...' : 'Delete'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
