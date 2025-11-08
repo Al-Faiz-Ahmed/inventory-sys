@@ -17,6 +17,14 @@ import type {
   SupplierFormData,
   ReportSummary,
   ReportFilters,
+  PurchaseEntry,
+  PurchaseEntryFormData,
+  PurchaseItemEntry,
+  SupplierTransactionEntry,
+  SupplierTransactionFormData,
+  MainAccountEntry,
+  MainAccountFormData,
+  SupplierTransactionsFilters,
 } from "../../../shared/types";
 import type { ApiEnvelope } from "../../../shared/error";
 
@@ -88,6 +96,33 @@ export const authApi = {
 
   getMe: async (): Promise<User> => {
     const response: AxiosResponse<ApiEnvelope<User>> = await api.get("/auth/me");
+    return unwrap(response);
+  },
+};
+
+// Main Account API
+export const mainAccountApi = {
+  list: async (filters?: {
+    fromDate?: string;
+    toDate?: string;
+    transactionType?: 'debit' | 'credit';
+    sourceType?: 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
+    minAmount?: number;
+    maxAmount?: number;
+    sourceId?: number;
+    referenceId?: number;
+  }): Promise<MainAccountEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<MainAccountEntry[]>> = await api.get(
+      `/main-account`,
+      { params: filters }
+    );
+    return unwrap(response);
+  },
+  create: async (entry: MainAccountFormData): Promise<MainAccountEntry> => {
+    const response: AxiosResponse<ApiEnvelope<MainAccountEntry>> = await api.post(
+      `/main-account`,
+      entry
+    );
     return unwrap(response);
   },
 };
@@ -207,20 +242,20 @@ export const salesApi = {
 
 // Purchases API
 export const purchasesApi = {
-  getPurchases: async (): Promise<Purchase[]> => {
-    const response: AxiosResponse<ApiEnvelope<Purchase[]>> = await api.get("/purchases");
+  getPurchases: async (filters?: { supplierId?: number }): Promise<PurchaseEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseEntry[]>> = await api.get("/purchases", { params: filters });
     return unwrap(response);
   },
 
-  getPurchase: async (id: string): Promise<Purchase> => {
-    const response: AxiosResponse<ApiEnvelope<Purchase>> = await api.get(`/purchases/${id}`);
+  getPurchase: async (id: number): Promise<PurchaseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseEntry>> = await api.get(`/purchases/${id}`);
     return unwrap(response);
   },
 
   createPurchase: async (
-    purchase: Omit<Purchase, "id" | "createdAt" | "updatedAt">
-  ): Promise<Purchase> => {
-    const response: AxiosResponse<ApiEnvelope<Purchase>> = await api.post(
+    purchase: PurchaseEntryFormData
+  ): Promise<PurchaseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseEntry>> = await api.post(
       "/purchases",
       purchase
     );
@@ -228,19 +263,39 @@ export const purchasesApi = {
   },
 
   updatePurchase: async (
-    id: string,
-    purchase: Partial<Purchase>
-  ): Promise<Purchase> => {
-    const response: AxiosResponse<ApiEnvelope<Purchase>> = await api.put(
+    id: number,
+    purchase: Partial<PurchaseEntryFormData>
+  ): Promise<PurchaseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseEntry>> = await api.put(
       `/purchases/${id}`,
       purchase
     );
     return unwrap(response);
   },
 
-  deletePurchase: async (id: string): Promise<void> => {
+  deletePurchase: async (id: number): Promise<void> => {
     const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/purchases/${id}`);
     unwrap(response);
+  },
+
+  // Purchase Items (nested)
+  getPurchaseItems: async (
+    purchaseId: number,
+  ): Promise<PurchaseItemEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseItemEntry[]>> = await api.get(
+      `/purchases/${purchaseId}/items`
+    );
+    return unwrap(response);
+  },
+  createPurchaseItem: async (
+    purchaseId: number,
+    item: { productId: string; quantity: number; unitPrice: number }
+  ): Promise<PurchaseItemEntry> => {
+    const response: AxiosResponse<ApiEnvelope<PurchaseItemEntry>> = await api.post(
+      `/purchases/${purchaseId}/items`,
+      item
+    );
+    return unwrap(response);
   },
 };
 
@@ -307,7 +362,7 @@ export const suppliersApi = {
     return unwrap(response);
   },
 
-  getSupplier: async (id: string): Promise<Supplier> => {
+  getSupplier: async (id: number): Promise<Supplier> => {
     const response: AxiosResponse<ApiEnvelope<Supplier>> = await api.get(`/suppliers/${id}`);
     return unwrap(response);
   },
@@ -323,7 +378,7 @@ export const suppliersApi = {
   },
 
   updateSupplier: async (
-    id: string,
+    id: number,
     supplier: Partial<SupplierFormData>
   ): Promise<Supplier> => {
     const response: AxiosResponse<ApiEnvelope<Supplier>> = await api.put(
@@ -333,7 +388,7 @@ export const suppliersApi = {
     return unwrap(response);
   },
 
-  deleteSupplier: async (id: string): Promise<void> => {
+  deleteSupplier: async (id: number): Promise<void> => {
     const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/suppliers/${id}`);
     unwrap(response);
   },
@@ -353,6 +408,44 @@ export const reportsApi = {
 };
 
 export default api;
+
+// Supplier Transactions API
+export const supplierTransactionsApi = {
+  list: async (supplierId: number, filters?: SupplierTransactionsFilters): Promise<SupplierTransactionEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<SupplierTransactionEntry[]>> = await api.get(
+      `/suppliers/${supplierId}/transactions`,
+      { params: filters }
+    );
+    return unwrap(response);
+  },
+  create: async (
+    supplierId: number,
+    tx: SupplierTransactionFormData
+  ): Promise<SupplierTransactionEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SupplierTransactionEntry>> = await api.post(
+      `/suppliers/${supplierId}/transactions`,
+      tx
+    );
+    return unwrap(response);
+  },
+  update: async (
+    supplierId: number,
+    transactionId: number,
+    tx: Partial<SupplierTransactionFormData>
+  ): Promise<SupplierTransactionEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SupplierTransactionEntry>> = await api.put(
+      `/suppliers/${supplierId}/transactions/${transactionId}`,
+      tx
+    );
+    return unwrap(response);
+  },
+  delete: async (supplierId: number, transactionId: number): Promise<void> => {
+    const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(
+      `/suppliers/${supplierId}/transactions/${transactionId}`
+    );
+    unwrap(response);
+  },
+};
 
 // Helper to unwrap ApiEnvelope and throw on error for consumers
 function unwrap<T>(response: AxiosResponse<ApiEnvelope<T>>): T {

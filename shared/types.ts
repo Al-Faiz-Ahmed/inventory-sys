@@ -50,7 +50,10 @@ export interface Product {
   quantity: number;
   minQuantity: number;
   maxQuantity: number;
-  supplier?: string;
+  avgPrice?: number;
+  previousCost?: number;
+  previousPrice?: number;
+  previousAvgPrice?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,7 +68,6 @@ export interface ProductFormData {
   quantity: number;
   minQuantity: number;
   maxQuantity: number;
-  supplier?: string;
 }
 
 // Sales types
@@ -201,6 +203,68 @@ export interface PurchasesFilters {
   supplierName?: string;
 }
 
+// New Purchases (supplier-linked) schema types
+export type PurchaseStatus = 'paid' | 'unpaid' | 'partial';
+
+export interface PurchaseEntry {
+  id: number;
+  supplierId: number;
+  invoiceNumber: string;
+  date: string; // ISO date string
+  totalAmount: number;
+  paidAmount: number;
+  status: PurchaseStatus;
+  description?: string;
+  createdAt: string;
+}
+
+export interface PurchaseEntryFormData {
+  supplierId: number;
+  invoiceNumber: string;
+  date: string; // ISO date string
+  totalAmount: number;
+  paidAmount?: number;
+  status: PurchaseStatus;
+  description?: string;
+}
+
+export interface PurchaseItemEntry {
+  id: number;
+  purchaseId: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface PurchaseItemFormData {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+// Supplier Transactions
+export type SupplierTransactionType = 'purchase' | 'payment' | 'refund' | 'adjustment';
+
+export interface SupplierTransactionEntry {
+  id: number;
+  supplierId: number;
+  transactionType: SupplierTransactionType;
+  amount: number;
+  referenceId?: number | null;
+  description?: string;
+  createdAt: string;
+}
+
+export interface SupplierTransactionFormData {
+  transactionType: SupplierTransactionType;
+  amount: number;
+  referenceId?: number | null;
+  description?: string;
+}
+
 export interface ExpensesFilters {
   search?: string;
   startDate?: string;
@@ -210,26 +274,61 @@ export interface ExpensesFilters {
 
 // Supplier types
 export interface Supplier {
-  id: string;
+  id: number;
   name: string;
-  contactNumber?: string;
-  phone?: string;
   email?: string;
+  phone?: string;
+  contactPerson?: string;
   address?: string;
-  bankAccNo?: string;
-  bankAccName?: string;
+  description?: string;
+  currentBalance: number;
+  debt: number;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface SupplierFormData {
   name: string;
-  contactNumber?: string;
-  phone?: string;
   email?: string;
+  phone?: string;
+  contactPerson?: string;
   address?: string;
-  bankAccNo?: string;
-  bankAccName?: string;
+  description?: string;
 }
 
+
+
+// Main Account types
+export type MainAccountTransactionType = 'debit' | 'credit';
+export type MainAccountSourceType = 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
+
+export interface MainAccountEntry {
+  id: number;
+  transactionType: MainAccountTransactionType;
+  sourceType: MainAccountSourceType;
+  sourceId?: number | null;
+  referenceId?: number | null;
+  transactionAmount: number;
+  balanceAmount: number;
+  description?: string;
+  createdAt: string;
+}
+
+export interface MainAccountFormData {
+  transactionType: MainAccountTransactionType;
+  sourceType: MainAccountSourceType;
+  sourceId?: number | null;
+  referenceId?: number | null;
+  transactionAmount: number;
+  balanceAmount: number;
+  description?: string;
+}
+
+export interface SupplierTransactionsFilters {
+  fromDate?: string;
+  toDate?: string;
+  transactionType?: SupplierTransactionType;
+  minAmount?: number;
+  maxAmount?: number;
+  search?: string;
+}
 

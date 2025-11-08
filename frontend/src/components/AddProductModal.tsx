@@ -47,7 +47,6 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
     quantity: 0,
     minQuantity: 0,
     maxQuantity: 0,
-    supplier: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -95,12 +94,12 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
       newErrors.category = 'Product category is required';
     }
 
-    if (!formData.price || formData.price <= 0) {
-      newErrors.price = 'Price must be greater than 0';
+    if (formData.price < 0) {
+      newErrors.price = 'Price must be greater than or equal to 0';
     }
 
-    if (!formData.cost || formData.cost <= 0) {
-      newErrors.cost = 'Cost must be greater than 0';
+    if (formData.cost < 0) {
+      newErrors.cost = 'Cost must be greater than or equal to 0';
     }
 
     if (formData.cost > formData.price) {
@@ -181,7 +180,6 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
       quantity: 0,
       minQuantity: 0,
       maxQuantity: 0,
-      supplier: '',
     });
     setErrors({});
     setTouched({});
@@ -190,7 +188,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
 
   // Auto-format price and cost inputs
   const formatNumberInput = (value: number | string): string => {
-    if (value === '' || value === 0) return '';
+    if (value === '') return '';
     return value.toString();
   };
 
@@ -267,24 +265,34 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
               <Label htmlFor="sku">
                 SKU (Stock Keeping Unit) <span className="text-destructive">*</span>
               </Label>
-            <Input
-              id="sku"
-              name="sku"
-              type="text"
-              value={formData.sku}
-              onChange={handleChange}
-              onBlur={() => handleBlur('sku')}
-              placeholder="e.g., PROD-001"
-              aria-invalid={touched.sku && !!errors.sku}
-              aria-describedby={touched.sku && errors.sku ? 'sku-error' : undefined}
-              // error={touched.sku && !!errors.sku}
-              required
-            />
-            {touched.sku && errors.sku && (
-              <p id="sku-error" className="text-sm text-destructive mt-1" role="alert">
-                {errors.sku}
-              </p>
-            )}
+              <div className="flex gap-2">
+                <Input
+                  id="sku"
+                  name="sku"
+                  type="text"
+                  value={formData.sku}
+                  onChange={handleChange}
+                  onBlur={() => handleBlur('sku')}
+                  placeholder="e.g., PROD-ABC123"
+                  aria-invalid={touched.sku && !!errors.sku}
+                  aria-describedby={touched.sku && errors.sku ? 'sku-error' : undefined}
+                  required
+                />
+                <Button type="button" variant="outline" onClick={() => {
+                  const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
+                  const digits = Math.floor(100 + Math.random() * 900).toString();
+                  const generated = `PROD-${letters}${digits}`;
+                  setFormData((prev) => ({ ...prev, sku: generated }));
+                  setTouched((prev) => ({ ...prev, sku: true }));
+                }}>
+                  Generate
+                </Button>
+              </div>
+              {touched.sku && errors.sku && (
+                <p id="sku-error" className="text-sm text-destructive mt-1" role="alert">
+                  {errors.sku}
+                </p>
+              )}
             </div>
 
             {/* Category */}
@@ -345,9 +353,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   Selling Price <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                    $
-                  </span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">Rs.</span>
                   <Input
                     id="price"
                     name="price"
@@ -358,7 +364,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                     onChange={handleChange}
                     onBlur={() => handleBlur('price')}
                     placeholder="0.00"
-                    className="pl-8"
+                    className="pl-10"
                     aria-invalid={touched.price && !!errors.price}
                     aria-describedby={
                       touched.price && errors.price ? 'price-error' : undefined
@@ -380,9 +386,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   Cost Price <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                    $
-                  </span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">Rs.</span>
                   <Input
                     id="cost"
                     name="cost"
@@ -393,7 +397,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                     onChange={handleChange}
                     onBlur={() => handleBlur('cost')}
                     placeholder="0.00"
-                    className="pl-8"
+                    className="pl-10"
                     aria-invalid={touched.cost && !!errors.cost}
                     aria-describedby={touched.cost && errors.cost ? 'cost-error' : undefined}
                     // error={touched.cost && !!errors.cost}
@@ -422,6 +426,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
                   id="quantity"
                   name="quantity"
                   type="number"
+                  step="0.001"
                   min="0"
                   value={formatNumberInput(formData.quantity)}
                   onChange={handleChange}
@@ -492,25 +497,7 @@ export function AddProductModal({ open, onOpenChange }: AddProductModalProps) {
             </div>
           </div>
 
-          {/* Additional Information Section */}
-          <div className="space-y-5 pt-2">
-            <h3 className="text-lg font-semibold text-foreground pb-2 border-b border-border">
-              Additional Information
-            </h3>
-            
-            {/* Supplier */}
-            <div className="space-y-2">
-              <Label htmlFor="supplier">Supplier</Label>
-              <Input
-                id="supplier"
-                name="supplier"
-                type="text"
-                value={formData.supplier}
-                onChange={handleChange}
-                placeholder="Enter supplier name (optional)"
-              />
-            </div>
-          </div>
+          {/* Additional Information Section intentionally removed (supplier not tracked on product) */}
             </div>
           </form>
 

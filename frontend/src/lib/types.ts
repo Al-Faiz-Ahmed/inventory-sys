@@ -52,7 +52,10 @@ export interface Product {
   quantity: number;
   minQuantity: number;
   maxQuantity: number;
-  supplier?: string;
+  avgPrice?: number;
+  previousCost?: number;
+  previousPrice?: number;
+  previousAvgPrice?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,7 +70,6 @@ export interface ProductFormData {
   quantity: number;
   minQuantity: number;
   maxQuantity: number;
-  supplier?: string;
 }
 
 // Sales types
@@ -212,24 +214,23 @@ export interface ExpensesFilters {
 
 // Supplier types
 export interface Supplier {
-  id: string;
+  id: number;
   name: string;
-  contactNumber?: string;
-  phone?: string;
   email?: string;
+  phone?: string;
+  contactPerson?: string;
   address?: string;
-  bankAccNo?: string;
-  bankAccName?: string;
+  description?: string;
+  currentBalance: number;
+  debt: number;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface SupplierFormData {
   name: string;
-  contactNumber?: string;
-  phone?: string;
   email?: string;
+  phone?: string;
+  contactPerson?: string;
   address?: string;
-  bankAccNo?: string;
-  bankAccName?: string;
+  description?: string;
 }

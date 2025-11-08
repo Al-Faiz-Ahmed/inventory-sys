@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
 const JWT_SECRET: string = process.env.JWT_SECRET || "dev_secret";
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || "30d";
 
 export const signup = async (req: Request, res: Response) => {
   try {

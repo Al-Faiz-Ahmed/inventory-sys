@@ -29,6 +29,41 @@
       "when": 1762026803331,
       "tag": "0003_lovely_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1762099939908,
+      "tag": "0004_superb_boomerang",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1762103908539,
+      "tag": "0005_jittery_princess_powerful",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1762290408717,
+      "tag": "0006_common_martin_li",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1762591570302,
+      "tag": "0007_fine_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1762600108352,
+      "tag": "0008_dark_sumo",
+      "breakpoints": true
     }
   ]
 }

@@ -49,7 +49,6 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
     quantity: 0,
     minQuantity: 0,
     maxQuantity: 0,
-    supplier: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -67,7 +66,6 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
         quantity: Number(product.quantity) || 0,
         minQuantity: Number(product.minQuantity) || 0,
         maxQuantity: Number(product.maxQuantity) || 0,
-        supplier: product.supplier || '',
       });
       setErrors({});
       setTouched({});
@@ -81,9 +79,12 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
     enabled: open,
   });
 
-  // Update product mutation
+  // Update product mutation (do not send SKU)
   const updateProductMutation = useMutation({
-    mutationFn: (data: ProductFormData) => inventoryApi.updateProduct((product as any)?.id, data as any),
+    mutationFn: (data: ProductFormData) => {
+      const { sku: _sku, ...rest } = data as any;
+      return inventoryApi.updateProduct((product as any)?.id, rest);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -96,21 +97,18 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
     },
   });
 
-  // Validate form (same as AddProductModal)
+  // Validate form (SKU excluded in edit)
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
 
     if (!formData.name.trim()) newErrors.name = 'Product name is required';
     else if (formData.name.trim().length < 2) newErrors.name = 'Product name must be at least 2 characters';
 
-    if (!formData.sku.trim()) newErrors.sku = 'SKU is required';
-    else if (formData.sku.trim().length < 2) newErrors.sku = 'SKU must be at least 2 characters';
-
     if (!formData.categoryId) newErrors.category = 'Product category is required';
 
-    if (!formData.price || formData.price <= 0) newErrors.price = 'Price must be greater than 0';
+    if (formData.price < 0) newErrors.price = 'Price must be greater than or equal to 0';
 
-    if (!formData.cost || formData.cost <= 0) newErrors.cost = 'Cost must be greater than 0';
+    if (formData.cost < 0) newErrors.cost = 'Cost must be greater than or equal to 0';
 
     if (formData.cost > formData.price) newErrors.cost = 'Cost cannot be greater than price';
 
@@ -203,11 +201,7 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                   <Textarea id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Enter product description (optional)" rows={3} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU (Stock Keeping Unit) <span className="text-destructive">*</span></Label>
-                  <Input id="sku" name="sku" type="text" value={formData.sku} onChange={handleChange} onBlur={() => handleBlur('sku')} placeholder="e.g., PROD-001" aria-invalid={touched.sku && !!errors.sku} aria-describedby={touched.sku && errors.sku ? 'sku-error' : undefined} required />
-                  {touched.sku && errors.sku && <p id="sku-error" className="text-sm text-destructive mt-1" role="alert">{errors.sku}</p>}
-                </div>
+                {/* SKU is not editable in edit modal */}
 
                 <div className="space-y-2">
                   <Label htmlFor="category">Product Category <span className="text-destructive">*</span></Label>
@@ -238,8 +232,8 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                   <div className="space-y-2">
                     <Label htmlFor="price">Selling Price <span className="text-destructive">*</span></Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
-                      <Input id="price" name="price" type="number" step="0.01" min="0" value={formatNumberInput(formData.price)} onChange={handleChange} onBlur={() => handleBlur('price')} placeholder="0.00" className="pl-8" aria-invalid={touched.price && !!errors.price} aria-describedby={touched.price && errors.price ? 'price-error' : undefined} required />
+                      <span className="absolute right-auto left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">Rs.</span>
+                      <Input id="price" name="price" type="number" step="0.01" min="0" value={formatNumberInput(formData.price)} onChange={handleChange} onBlur={() => handleBlur('price')} placeholder="0.00" className="pl-10" aria-invalid={touched.price && !!errors.price} aria-describedby={touched.price && errors.price ? 'price-error' : undefined} required />
                     </div>
                     {touched.price && errors.price && <p id="price-error" className="text-sm text-destructive mt-1" role="alert">{errors.price}</p>}
                   </div>
@@ -247,8 +241,8 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                   <div className="space-y-2">
                     <Label htmlFor="cost">Cost Price <span className="text-destructive">*</span></Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
-                      <Input id="cost" name="cost" type="number" step="0.01" min="0" value={formatNumberInput(formData.cost)} onChange={handleChange} onBlur={() => handleBlur('cost')} placeholder="0.00" className="pl-8" aria-invalid={touched.cost && !!errors.cost} aria-describedby={touched.cost && errors.cost ? 'cost-error' : undefined} required />
+                      <span className="absolute right-auto left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">Rs.</span>
+                      <Input id="cost" name="cost" type="number" step="0.01" min="0" value={formatNumberInput(formData.cost)} onChange={handleChange} onBlur={() => handleBlur('cost')} placeholder="0.00" className="pl-10" aria-invalid={touched.cost && !!errors.cost} aria-describedby={touched.cost && errors.cost ? 'cost-error' : undefined} required />
                     </div>
                     {touched.cost && errors.cost && <p id="cost-error" className="text-sm text-destructive mt-1" role="alert">{errors.cost}</p>}
                   </div>
@@ -260,7 +254,7 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Current Quantity</Label>
-                    <Input id="quantity" name="quantity" type="number" min="0" value={formatNumberInput(formData.quantity)} onChange={handleChange} onBlur={() => handleBlur('quantity')} placeholder="0" aria-invalid={touched.quantity && !!errors.quantity} aria-describedby={touched.quantity && errors.quantity ? 'quantity-error' : undefined} />
+                    <Input id="quantity" name="quantity" type="number" step="0.001" min="0" value={formatNumberInput(formData.quantity)} onChange={handleChange} onBlur={() => handleBlur('quantity')} placeholder="0" aria-invalid={touched.quantity && !!errors.quantity} aria-describedby={touched.quantity && errors.quantity ? 'quantity-error' : undefined} />
                     {touched.quantity && errors.quantity && <p id="quantity-error" className="text-sm text-destructive mt-1" role="alert">{errors.quantity}</p>}
                   </div>
 
@@ -278,13 +272,7 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                 </div>
               </div>
 
-              <div className="space-y-5 pt-2">
-                <h3 className="text-lg font-semibold text-foreground pb-2 border-b border-border">Additional Information</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <Input id="supplier" name="supplier" type="text" value={formData.supplier} onChange={handleChange} placeholder="Enter supplier name (optional)" />
-                </div>
-              </div>
+              {/* Supplier field removed - supplier is not tracked on product */}
             </div>
           </form>
 

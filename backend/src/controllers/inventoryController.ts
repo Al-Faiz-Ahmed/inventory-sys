@@ -7,11 +7,11 @@ import { productCategories } from "../models/product-categories";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
 // Helper: normalize numeric input to string for decimal fields, and numbers for integers
-function toDecimalString(n: unknown): string | null {
+function toDecimalString(n: unknown, scale = 2): string | null {
   if (n === undefined || n === null || n === "") return null;
   const num = typeof n === "string" ? Number(n) : (n as number);
-  if (Number.isNaN(num)) return null;
-  return num.toFixed(2);
+  if (!Number.isFinite(num)) return null;
+  return num.toFixed(scale);
 }
 
 function toInteger(n: unknown): number | null {
@@ -33,7 +33,6 @@ export const createProduct = async (req: Request, res: Response) => {
       quantity,
       minQuantity,
       maxQuantity,
-      supplier,
     } = req.body || {};
 
     // Basic validation
@@ -50,25 +49,25 @@ export const createProduct = async (req: Request, res: Response) => {
       return res.status(400).json(fail(err));
     }
 
-    const priceStr = toDecimalString(price);
-    const costStr = toDecimalString(cost);
-    const quantityInt = toInteger(quantity) ?? 0;
+    const priceStr = toDecimalString(price, 2);
+    const costStr = toDecimalString(cost, 2);
+    const quantityStr = toDecimalString(quantity, 3) ?? "0.000";
     const minQtyInt = toInteger(minQuantity) ?? 0;
     const maxQtyInt = toInteger(maxQuantity) ?? 0;
 
-    if (!priceStr || Number(priceStr) <= 0) {
-      const err = makeApiError("BAD_REQUEST", "Price must be greater than 0", { status: 400 });
+    if (priceStr === null || priceStr === undefined) {
+      const err = makeApiError("BAD_REQUEST", "Price is required", { status: 400 });
       return res.status(400).json(fail(err));
     }
-    if (!costStr || Number(costStr) <= 0) {
-      const err = makeApiError("BAD_REQUEST", "Cost must be greater than 0", { status: 400 });
+    if (costStr === null || costStr === undefined) {
+      const err = makeApiError("BAD_REQUEST", "Cost is required", { status: 400 });
       return res.status(400).json(fail(err));
     }
     if (Number(costStr) > Number(priceStr)) {
       const err = makeApiError("BAD_REQUEST", "Cost cannot be greater than price", { status: 400 });
       return res.status(400).json(fail(err));
     }
-    if (quantityInt < 0 || minQtyInt < 0 || maxQtyInt < 0) {
+    if (Number(quantityStr) < 0 || minQtyInt < 0 || maxQtyInt < 0) {
       const err = makeApiError("BAD_REQUEST", "Quantities cannot be negative", { status: 400 });
       return res.status(400).json(fail(err));
     }
@@ -100,10 +99,12 @@ export const createProduct = async (req: Request, res: Response) => {
         categoryId,
         price: priceStr,
         cost: costStr,
-        quantity: quantityInt,
+        quantity: quantityStr,
         minQuantity: minQtyInt,
         maxQuantity: maxQtyInt,
-        supplier: supplier ? String(supplier) : null,
+        avgPrice: "0.00",
+        previousCost: "0.00",
+        previousPrice: "0.00",
       })
       .returning();
 
@@ -171,6 +172,44 @@ export const updateProduct = async (req: Request, res: Response) => {
       }
     }
 
+    const current = existing[0] as any;
+
+    const incomingPriceStr = body.price !== undefined ? toDecimalString(body.price, 2) : null;
+    const incomingCostStr = body.cost !== undefined ? toDecimalString(body.cost, 2) : null;
+
+    // Start with defaults as current values
+    let nextPrice = current.price as string;
+    let nextCost = current.cost as string;
+    let nextPrevPrice = current.previousPrice as string | null;
+    let nextPrevCost = current.previousCost as string | null;
+    let nextAvg = current.avgPrice as string | null;
+    let nextPrevAvg = current.previousAvgPrice as string | null;
+
+    // Detect changes and move current to previous before applying
+    const priceChanged = incomingPriceStr !== null && incomingPriceStr !== undefined && incomingPriceStr !== current.price;
+    const costChanged = incomingCostStr !== null && incomingCostStr !== undefined && incomingCostStr !== current.cost;
+
+    if (priceChanged) {
+      nextPrevPrice = current.price;
+      nextPrice = incomingPriceStr!;
+    }
+    if (costChanged) {
+      nextPrevCost = current.cost;
+      nextCost = incomingCostStr!;
+    }
+
+    // If either price or cost changed, recompute avgPrice and move old avg to previousAvgPrice
+    if (priceChanged || costChanged) {
+      // Move current avg to previousAvg if it exists
+      if (nextAvg !== null && nextAvg !== undefined) {
+        nextPrevAvg = nextAvg;
+      }
+      const p = Number(nextPrice);
+      const c = Number(nextCost);
+      const avg = ((p + c) / 2).toFixed(2);
+      nextAvg = avg;
+    }
+
     const updated = await db
       .update(products)
       .set({
@@ -178,12 +217,15 @@ export const updateProduct = async (req: Request, res: Response) => {
         description: body.description !== undefined ? body.description : existing[0].description,
         sku: body.sku ?? existing[0].sku,
         categoryId: body.categoryId ?? existing[0].categoryId,
-        price: body.price !== undefined ? toDecimalString(body.price)! : (existing[0] as any).price,
-        cost: body.cost !== undefined ? toDecimalString(body.cost)! : (existing[0] as any).cost,
-        quantity: body.quantity !== undefined ? toInteger(body.quantity)! : existing[0].quantity,
+        price: nextPrice,
+        cost: nextCost,
+        previousPrice: nextPrevPrice ?? current.previousPrice,
+        previousCost: nextPrevCost ?? current.previousCost,
+        avgPrice: nextAvg ?? current.avgPrice,
+        previousAvgPrice: nextPrevAvg ?? current.previousAvgPrice,
+        quantity: body.quantity !== undefined ? toDecimalString(body.quantity, 3)! : (existing[0] as any).quantity,
         minQuantity: body.minQuantity !== undefined ? toInteger(body.minQuantity)! : existing[0].minQuantity,
         maxQuantity: body.maxQuantity !== undefined ? toInteger(body.maxQuantity)! : existing[0].maxQuantity,
-        supplier: body.supplier !== undefined ? body.supplier : existing[0].supplier,
         updatedAt: new Date(),
       })
       .where(eq(products.id, id))

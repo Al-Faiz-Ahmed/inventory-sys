@@ -5,6 +5,8 @@ import authRoutes from "./routes/authRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
 import inventoryRoutes from "./routes/inventoryRoutes";
 import supplierRoutes from "./routes/supplierRoutes";
+import purchaseRoutes from "./routes/purchaseRoutes";
+import mainAccountRoutes from "./routes/mainAccountRoutes";
 import { authenticate } from "./middleware/authMiddleware";
 
 dotenv.config();
@@ -18,6 +20,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/purchases", purchaseRoutes);
+app.use("/api/main-account", mainAccountRoutes);
 
 // Basic root route
 app.get("/", (_req, res) => {

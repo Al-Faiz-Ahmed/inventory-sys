@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { AddProductModal } from '@/components/AddProductModal';
 import { EditProductModal } from '@/components/EditProductModal';
+import { ProductDetailModal } from '@/components/ProductDetailModal';
 import { formatCurrency } from '@/lib/helpers';
 import { categoriesApi, inventoryApi } from '@/lib/api';
 import type { Category, Product } from '@/lib/types';
@@ -57,6 +58,7 @@ export function Inventory() {
   const [categoriesFetched, setCategoriesFetched] = useState(() => loadCategoriesFromStorage().length > 0);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
+  const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -91,6 +93,11 @@ export function Inventory() {
   const openEditProduct = (product: Product) => {
     setSelectedProduct(product);
     setIsEditProductModalOpen(true);
+  };
+
+  const openProductDetail = (product: Product) => {
+    setSelectedProduct(product);
+    setIsProductDetailOpen(true);
   };
 
   const openDeleteDialog = (product: Product) => {
@@ -268,6 +275,13 @@ export function Inventory() {
         onOpenChange={setIsAddProductModalOpen}
       />
 
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        open={isProductDetailOpen}
+        onOpenChange={setIsProductDetailOpen}
+        product={selectedProduct}
+      />
+
       {/* Edit Product Modal */}
       <EditProductModal
         open={isEditProductModalOpen}
@@ -283,7 +297,7 @@ export function Inventory() {
           quantity: Number((selectedProduct as any).quantity),
           minQuantity: Number((selectedProduct as any).minQuantity),
           maxQuantity: Number((selectedProduct as any).maxQuantity),
-          supplier: selectedProduct.supplier,
+          
         }) : null}
         onUpdated={() => {
           // After update, refresh products in opened categories
@@ -385,7 +399,13 @@ export function Inventory() {
                                   <tr key={product.id} className="border-b">
                                     <td className="p-4">
                                       <div>
-                                        <div className="font-medium">{product.name}</div>
+                                        <button
+                                          type="button"
+                                          onClick={() => openProductDetail(product)}
+                                          className="font-medium text-left hover:underline"
+                                        >
+                                          {product.name}
+                                        </button>
                                         <div className="text-sm text-muted-foreground">
                                           {product.description}
                                         </div>

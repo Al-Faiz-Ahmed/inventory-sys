@@ -26,12 +26,11 @@ interface EditSupplierModalProps {
 
 interface FormErrors {
   name?: string;
-  contactNumber?: string;
   phone?: string;
   email?: string;
   address?: string;
-  bankAccNo?: string;
-  bankAccName?: string;
+  contactPerson?: string;
+  description?: string;
   _general?: string;
 }
 
@@ -39,12 +38,11 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<SupplierFormData>({
     name: '',
-    contactNumber: '',
-    phone: '',
     email: '',
+    phone: '',
+    contactPerson: '',
     address: '',
-    bankAccNo: '',
-    bankAccName: '',
+    description: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -54,12 +52,11 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
     if (open && supplier) {
       setFormData({
         name: supplier.name || '',
-        contactNumber: supplier.contactNumber || '',
-        phone: supplier.phone || '',
         email: supplier.email || '',
+        phone: supplier.phone || '',
+        contactPerson: supplier.contactPerson || '',
         address: supplier.address || '',
-        bankAccNo: supplier.bankAccNo || '',
-        bankAccName: supplier.bankAccName || '',
+        description: supplier.description || '',
       });
       setErrors({});
       setTouched({});
@@ -124,12 +121,11 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
     // Mark all required fields as touched
     setTouched({
       name: true,
-      contactNumber: true,
       phone: true,
       email: true,
       address: true,
-      bankAccNo: true,
-      bankAccName: true,
+      contactPerson: true,
+      description: true,
     });
 
     if (!validate()) {
@@ -143,12 +139,11 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
     // Reset form
     setFormData({
       name: '',
-      contactNumber: '',
-      phone: '',
       email: '',
+      phone: '',
+      contactPerson: '',
       address: '',
-      bankAccNo: '',
-      bankAccName: '',
+      description: '',
     });
     setErrors({});
     setTouched({});
@@ -211,20 +206,6 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
                   Contact Information
                 </h3>
 
-                {/* Contact Number */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-contactNumber">Contact Number</Label>
-                  <Input
-                    id="edit-contactNumber"
-                    name="contactNumber"
-                    type="tel"
-                    value={formData.contactNumber}
-                    onChange={handleChange}
-                    onBlur={() => handleBlur('contactNumber')}
-                    placeholder="Enter contact number"
-                  />
-                </div>
-
                 {/* Phone */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Phone</Label>
@@ -236,6 +217,20 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
                     onChange={handleChange}
                     onBlur={() => handleBlur('phone')}
                     placeholder="Enter phone number"
+                  />
+                </div>
+
+                {/* Contact Person */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-contactPerson">Contact Person</Label>
+                  <Input
+                    id="edit-contactPerson"
+                    name="contactPerson"
+                    type="text"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    onBlur={() => handleBlur('contactPerson')}
+                    placeholder="Enter contact person"
                   />
                 </div>
 
@@ -275,39 +270,18 @@ export function EditSupplierModal({ open, onOpenChange, supplier, onUpdated }: E
                 </div>
               </div>
 
-              {/* Bank Information Section */}
-              <div className="space-y-5">
-                <h3 className="text-lg font-semibold text-foreground pb-2 border-b border-border">
-                  Bank Information
-                </h3>
-
-                {/* Bank Account Number */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-bankAccNo">Bank Account Number</Label>
-                  <Input
-                    id="edit-bankAccNo"
-                    name="bankAccNo"
-                    type="text"
-                    value={formData.bankAccNo}
-                    onChange={handleChange}
-                    onBlur={() => handleBlur('bankAccNo')}
-                    placeholder="Enter bank account number"
-                  />
-                </div>
-
-                {/* Bank Account Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-bankAccName">Bank Account Name</Label>
-                  <Input
-                    id="edit-bankAccName"
-                    name="bankAccName"
-                    type="text"
-                    value={formData.bankAccName}
-                    onChange={handleChange}
-                    onBlur={() => handleBlur('bankAccName')}
-                    placeholder="Enter bank account name"
-                  />
-                </div>
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  onBlur={() => handleBlur('description')}
+                  placeholder="Additional details about the supplier"
+                  rows={3}
+                />
               </div>
             </div>
           </form>
