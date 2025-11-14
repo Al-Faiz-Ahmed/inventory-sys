@@ -12,7 +12,9 @@ import type {
   
   Sale,
   Purchase,
-  Expense,
+  ExpenseEntry,
+  ExpenseEntryFormData,
+  ExpenseCategoryEntry,
   Supplier,
   SupplierFormData,
   ReportSummary,
@@ -20,6 +22,15 @@ import type {
   PurchaseEntry,
   PurchaseEntryFormData,
   PurchaseItemEntry,
+  Customer,
+  CustomerFormData,
+  SaleEntry,
+  SaleEntryFormData,
+  SaleItemEntry,
+  SaleItemFormData,
+  CustomerTransactionEntry,
+  CustomerTransactionFormData,
+  CustomerTransactionsFilters,
   SupplierTransactionEntry,
   SupplierTransactionFormData,
   MainAccountEntry,
@@ -97,6 +108,79 @@ export const authApi = {
   getMe: async (): Promise<User> => {
     const response: AxiosResponse<ApiEnvelope<User>> = await api.get("/auth/me");
     return unwrap(response);
+  },
+};
+
+// Customer Transactions API
+export const customerTransactionsApi = {
+  list: async (customerId: number, filters?: CustomerTransactionsFilters): Promise<CustomerTransactionEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<CustomerTransactionEntry[]>> = await api.get(
+      `/customers/${customerId}/transactions`,
+      { params: filters }
+    );
+    return unwrap(response);
+  },
+  create: async (
+    customerId: number,
+    tx: CustomerTransactionFormData
+  ): Promise<CustomerTransactionEntry> => {
+    const response: AxiosResponse<ApiEnvelope<CustomerTransactionEntry>> = await api.post(
+      `/customers/${customerId}/transactions`,
+      tx
+    );
+    return unwrap(response);
+  },
+  update: async (
+    customerId: number,
+    transactionId: number,
+    tx: Partial<CustomerTransactionFormData>
+  ): Promise<CustomerTransactionEntry> => {
+    const response: AxiosResponse<ApiEnvelope<CustomerTransactionEntry>> = await api.put(
+      `/customers/${customerId}/transactions/${transactionId}`,
+      tx
+    );
+    return unwrap(response);
+  },
+  delete: async (customerId: number, transactionId: number): Promise<void> => {
+    const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(
+      `/customers/${customerId}/transactions/${transactionId}`
+    );
+    unwrap(response);
+  },
+};
+
+// Customers API
+export const customersApi = {
+  getCustomers: async (): Promise<Customer[]> => {
+    const response: AxiosResponse<ApiEnvelope<Customer[]>> = await api.get("/customers");
+    return unwrap(response);
+  },
+  getCustomer: async (id: number): Promise<Customer> => {
+    const response: AxiosResponse<ApiEnvelope<Customer>> = await api.get(`/customers/${id}`);
+    return unwrap(response);
+  },
+  createCustomer: async (
+    customer: CustomerFormData
+  ): Promise<Customer> => {
+    const response: AxiosResponse<ApiEnvelope<Customer>> = await api.post(
+      "/customers",
+      customer
+    );
+    return unwrap(response);
+  },
+  updateCustomer: async (
+    id: number,
+    customer: Partial<CustomerFormData>
+  ): Promise<Customer> => {
+    const response: AxiosResponse<ApiEnvelope<Customer>> = await api.put(
+      `/customers/${id}`,
+      customer
+    );
+    return unwrap(response);
+  },
+  deleteCustomer: async (id: number): Promise<void> => {
+    const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/customers/${id}`);
+    unwrap(response);
   },
 };
 
@@ -212,31 +296,60 @@ export const inventoryApi = {
 
 // Sales API
 export const salesApi = {
-  getSales: async (): Promise<Sale[]> => {
-    const response: AxiosResponse<ApiEnvelope<Sale[]>> = await api.get("/sales");
+  getSales: async (filters?: { customerId?: number }): Promise<SaleEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<SaleEntry[]>> = await api.get("/sales", { params: filters });
     return unwrap(response);
   },
 
-  getSale: async (id: string): Promise<Sale> => {
-    const response: AxiosResponse<ApiEnvelope<Sale>> = await api.get(`/sales/${id}`);
+  getSale: async (id: number): Promise<SaleEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SaleEntry>> = await api.get(`/sales/${id}`);
     return unwrap(response);
   },
 
   createSale: async (
-    sale: Omit<Sale, "id" | "createdAt" | "updatedAt">
-  ): Promise<Sale> => {
-    const response: AxiosResponse<ApiEnvelope<Sale>> = await api.post("/sales", sale);
+    sale: SaleEntryFormData
+  ): Promise<SaleEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SaleEntry>> = await api.post(
+      "/sales",
+      sale
+    );
     return unwrap(response);
   },
 
-  updateSale: async (id: string, sale: Partial<Sale>): Promise<Sale> => {
-    const response: AxiosResponse<ApiEnvelope<Sale>> = await api.put(`/sales/${id}`, sale);
+  updateSale: async (
+    id: number,
+    sale: Partial<SaleEntryFormData>
+  ): Promise<SaleEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SaleEntry>> = await api.put(
+      `/sales/${id}`,
+      sale
+    );
     return unwrap(response);
   },
 
-  deleteSale: async (id: string): Promise<void> => {
+  deleteSale: async (id: number): Promise<void> => {
     const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/sales/${id}`);
     unwrap(response);
+  },
+
+  // Sale Items (nested)
+  getSaleItems: async (
+    saleId: number,
+  ): Promise<SaleItemEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<SaleItemEntry[]>> = await api.get(
+      `/sales/${saleId}/items`
+    );
+    return unwrap(response);
+  },
+  createSaleItem: async (
+    saleId: number,
+    item: SaleItemFormData
+  ): Promise<SaleItemEntry> => {
+    const response: AxiosResponse<ApiEnvelope<SaleItemEntry>> = await api.post(
+      `/sales/${saleId}/items`,
+      item
+    );
+    return unwrap(response);
   },
 };
 
@@ -301,20 +414,27 @@ export const purchasesApi = {
 
 // Expenses API
 export const expensesApi = {
-  getExpenses: async (): Promise<Expense[]> => {
-    const response: AxiosResponse<ApiEnvelope<Expense[]>> = await api.get("/expenses");
+  getExpenses: async (filters?: {
+    fromDate?: string;
+    toDate?: string;
+    categoryId?: number;
+    minAmount?: number;
+    maxAmount?: number;
+    expenseType?: 'expense' | 'adjustment';
+  }): Promise<ExpenseEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<ExpenseEntry[]>> = await api.get("/expenses", { params: filters });
     return unwrap(response);
   },
 
-  getExpense: async (id: string): Promise<Expense> => {
-    const response: AxiosResponse<ApiEnvelope<Expense>> = await api.get(`/expenses/${id}`);
+  getExpense: async (id: number): Promise<ExpenseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<ExpenseEntry>> = await api.get(`/expenses/${id}`);
     return unwrap(response);
   },
 
   createExpense: async (
-    expense: Omit<Expense, "id" | "createdAt" | "updatedAt">
-  ): Promise<Expense> => {
-    const response: AxiosResponse<ApiEnvelope<Expense>> = await api.post(
+    expense: ExpenseEntryFormData
+  ): Promise<ExpenseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<ExpenseEntry>> = await api.post(
       "/expenses",
       expense
     );
@@ -322,19 +442,27 @@ export const expensesApi = {
   },
 
   updateExpense: async (
-    id: string,
-    expense: Partial<Expense>
-  ): Promise<Expense> => {
-    const response: AxiosResponse<ApiEnvelope<Expense>> = await api.put(
+    id: number,
+    expense: Partial<ExpenseEntryFormData>
+  ): Promise<ExpenseEntry> => {
+    const response: AxiosResponse<ApiEnvelope<ExpenseEntry>> = await api.put(
       `/expenses/${id}`,
       expense
     );
     return unwrap(response);
   },
 
-  deleteExpense: async (id: string): Promise<void> => {
+  deleteExpense: async (id: number): Promise<void> => {
     const response: AxiosResponse<ApiEnvelope<null>> = await api.delete(`/expenses/${id}`);
     unwrap(response);
+  },
+};
+
+// Expense Categories API
+export const expenseCategoriesApi = {
+  list: async (): Promise<ExpenseCategoryEntry[]> => {
+    const response: AxiosResponse<ApiEnvelope<ExpenseCategoryEntry[]>> = await api.get("/expense-categories");
+    return unwrap(response);
   },
 };
 

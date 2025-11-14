@@ -5,16 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { supplierTransactionsApi } from '@/lib/api';
-import type { SupplierTransactionEntry, SupplierTransactionsFilters } from '../../../../shared/types';
+import { customerTransactionsApi, salesApi } from '@/lib/api';
+import type { CustomerTransactionEntry, SupplierTransactionsFilters } from '../../../../shared/types';
 import { formatCurrency, formatDate } from '@/lib/helpers';
 
-export default function SupplierTransactionsSection({ supplierId }: { supplierId: number }) {
+export default function CustomerTransactionsSection({ customerId }: { customerId: number }) {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<SupplierTransactionsFilters>({});
   const [openFilters, setOpenFilters] = useState(false);
   const [openAdd, setOpenAdd] = useState(false);
-  const [invoiceMap, setInvoiceMap] = useState<Map<number, string>>(new Map());
 
   // Add Transaction form state
   const [txType, setTxType] = useState<'payment'|'refund'|'adjustment'>('payment');
@@ -25,51 +24,29 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Purchases for invoice search (fetched lazily when add modal opens)
-  const purchasesQuery = useQuery({
-    queryKey: ['purchases-for-supplier', supplierId],
-    queryFn: async () => {
-      const { purchasesApi } = await import('@/lib/api');
-      return purchasesApi.getPurchases({ supplierId });
-    },
-    enabled: openAdd && Number.isFinite(supplierId),
+  // Sales for invoice search (fetched lazily when add modal opens)
+  const salesQuery = useQuery({
+    queryKey: ['sales-for-customer', customerId],
+    queryFn: async () => salesApi.getSales({ customerId }),
+    enabled: openAdd && Number.isFinite(customerId),
   });
 
-  const query = useQuery<SupplierTransactionEntry[]>({
-    queryKey: ['supplier-transactions', { supplierId, filters, search }],
-    queryFn: () => supplierTransactionsApi.list(supplierId, {
+  const query = useQuery<CustomerTransactionEntry[]>({
+    queryKey: ['customer-transactions', { customerId, filters, search }],
+    queryFn: () => customerTransactionsApi.list(customerId, {
       ...filters,
       search: search || undefined,
-    }),
-    enabled: Number.isFinite(supplierId),
+    } as any),
+    enabled: Number.isFinite(customerId),
   });
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const data = query.data || [];
-        const refIds = Array.from(new Set(data.map(tx => tx.referenceId).filter((v): v is number => typeof v === 'number')));
-        if (refIds.length === 0) { setInvoiceMap(new Map()); return; }
-        const map = new Map<number, string>();
-        const { purchasesApi } = await import('@/lib/api');
-        for (const id of refIds) {
-          try {
-            const p = await purchasesApi.getPurchase(id);
-            map.set(id, p.invoiceNumber);
-          } catch {}
-        }
-        setInvoiceMap(map);
-      } catch {}
-    })();
-  }, [query.data]);
 
   return (
     <Card className="overflow-visible">
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle>Supplier Transactions ({query.data?.length ?? 0})</CardTitle>
-            <CardDescription>Filter and search supplier related transactions</CardDescription>
+            <CardTitle>Customer Transactions ({query.data?.length ?? 0})</CardTitle>
+            <CardDescription>Filter and search customer related transactions</CardDescription>
           </div>
           <div className="flex gap-2">
             <Input
@@ -97,21 +74,17 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                   <th className="text-left p-2 md:p-3">Date</th>
                   <th className="text-left p-2 md:p-3">Type</th>
                   <th className="text-right p-2 md:p-3">Amount</th>
-                  <th className="text-right p-2 md:p-3">Balance</th>
                   <th className="text-left p-2 md:p-3">Reference</th>
                   <th className="text-left p-2 md:p-3">Description</th>
                 </tr>
               </thead>
               <tbody>
-                {([... (query.data || [])]
-                  .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-                ).map((tx) => (
+                {query.data!.map((tx) => (
                   <tr key={tx.id}>
                     <td className="p-2 md:p-3">{formatDate(tx.createdAt)}</td>
                     <td className="p-2 md:p-3 capitalize">{tx.transactionType}</td>
                     <td className="p-2 md:p-3 text-right">{formatCurrency(tx.amount)}</td>
-                    <td className="p-2 md:p-3 text-right">{formatCurrency(tx.balanceAmount)}</td>
-                    <td className="p-2 md:p-3">{tx.referenceId ? (invoiceMap.get(tx.referenceId) || '-') : '—'}</td>
+                    <td className="p-2 md:p-3">{tx.referenceId ?? '—'}</td>
                     <td className="p-2 md:p-3">{tx.description ?? '—'}</td>
                   </tr>
                 ))}
@@ -145,7 +118,7 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                   onChange={(e) => setFilters((f: SupplierTransactionsFilters) => ({ ...f, transactionType: (e.target.value || undefined) as any }))}
                 >
                   <option value="">All</option>
-                  <option value="purchase">Purchase</option>
+                  <option value="sale">Sale</option>
                   <option value="payment">Payment</option>
                   <option value="refund">Refund</option>
                   <option value="adjustment">Adjustment</option>
@@ -161,8 +134,8 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setFilters({})}>Clear</Button>
-              <Button onClick={() => { setOpenFilters(false); query.refetch(); }}>Apply</Button>
+              <Button variant="outline" onClick={() => setFilters({} as any)}>Clear</Button>
+              <Button onClick={() => { setOpenFilters(false); (query as any).refetch(); }}>Apply</Button>
             </div>
           </div>
         </DialogContent>
@@ -172,7 +145,7 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
       <Dialog open={openAdd} onOpenChange={(v) => { setOpenAdd(v); if (!v) { setFormError(null); setAmount(''); setReferenceId(null); setInvoiceQuery(''); setDescription(''); setTxType('payment'); } }}>
         <DialogContent className="max-w-lg w-full p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-            <DialogTitle className="text-xl font-semibold">Add Supplier Transaction</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Add Customer Transaction</DialogTitle>
             <DialogClose onClick={() => setOpenAdd(false)} />
           </DialogHeader>
           <div className="px-6 py-6 space-y-4">
@@ -195,6 +168,7 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                 <Input
                   type="number"
                   step="0.01"
+                  min={0.01}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
@@ -208,10 +182,9 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                   value={invoiceQuery}
                   onChange={(e) => { setInvoiceQuery(e.target.value); setReferenceId(null); }}
                 />
-                {/* simple dropdown suggestions */}
-                {openAdd && purchasesQuery.data && invoiceQuery.trim().length > 0 ? (
+                {openAdd && salesQuery.data && invoiceQuery.trim().length > 0 ? (
                   <div className="border rounded max-h-40 overflow-auto bg-background">
-                    {purchasesQuery.data
+                    {salesQuery.data
                       .filter((p) => p.invoiceNumber.toLowerCase().includes(invoiceQuery.toLowerCase()))
                       .slice(0, 10)
                       .map((p) => (
@@ -249,12 +222,12 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                       return;
                     }
                     const amt = Number(amount);
-                    if (!Number.isFinite(amt) || amt < 0) {
-                      setFormError('Enter a valid non-negative amount');
+                    if (!Number.isFinite(amt) || amt <= 0) {
+                      setFormError('Enter a valid amount greater than 0');
                       return;
                     }
                     setSubmitting(true);
-                    await supplierTransactionsApi.create(supplierId, {
+                    await customerTransactionsApi.create(customerId, {
                       transactionType: txType,
                       amount: amt,
                       referenceId: referenceId ?? undefined,
@@ -267,7 +240,7 @@ export default function SupplierTransactionsSection({ supplierId }: { supplierId
                     setInvoiceQuery('');
                     setDescription('');
                     setTxType('payment');
-                    query.refetch();
+                    (query as any).refetch();
                   } catch (err: any) {
                     setSubmitting(false);
                     setFormError(err?.message || 'Failed to create transaction');

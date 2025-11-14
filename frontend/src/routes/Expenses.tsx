@@ -1,158 +1,185 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { formatCurrency, formatDate } from '@/lib/helpers';
-import type { Expense } from '@/lib/types';
-
-// Mock data
-const mockExpenses: Expense[] = [
-  {
-    id: '1',
-    title: 'Office Rent',
-    description: 'Monthly office rent payment',
-    amount: 2500.00,
-    category: 'Rent',
-    expenseDate: '2024-01-01T00:00:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: '2',
-    title: 'Internet Bill',
-    description: 'Monthly internet service',
-    amount: 89.99,
-    category: 'Utilities',
-    expenseDate: '2024-01-05T00:00:00Z',
-    createdAt: '2024-01-05T00:00:00Z',
-    updatedAt: '2024-01-05T00:00:00Z',
-  },
-  {
-    id: '3',
-    title: 'Office Supplies',
-    description: 'Pens, paper, and other supplies',
-    amount: 125.50,
-    category: 'Supplies',
-    expenseDate: '2024-01-10T00:00:00Z',
-    createdAt: '2024-01-10T00:00:00Z',
-    updatedAt: '2024-01-10T00:00:00Z',
-  },
-];
+import { expensesApi, expenseCategoriesApi } from '@/lib/api';
+import type { ExpenseEntry, ExpenseEntryFormData, ExpenseCategoryEntry, ExpenseType } from '../../../shared/types';
 
 export function Expenses() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [items, setItems] = useState<ExpenseEntry[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const categories = Array.from(new Set(mockExpenses.map(e => e.category)));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterCategoryId, setFilterCategoryId] = useState<number | ''>('');
+  const [filterType, setFilterType] = useState<ExpenseType | ''>('');
+  const [filterMinAmount, setFilterMinAmount] = useState<string>('');
+  const [filterMaxAmount, setFilterMaxAmount] = useState<string>('');
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
 
-  const filteredExpenses = mockExpenses.filter(expense => {
-    const matchesSearch = expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || expense.category === selectedCategory;
-    const matchesStartDate = !startDate || expense.expenseDate >= startDate;
-    const matchesEndDate = !endDate || expense.expenseDate <= endDate;
-    return matchesSearch && matchesCategory && matchesStartDate && matchesEndDate;
-  });
+  const [openExpense, setOpenExpense] = useState(false);
+  const [openAdjustment, setOpenAdjustment] = useState(false);
 
-  const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const [form, setForm] = useState<{
+    title: string;
+    categoryId: number | '';
+    expenseDate: string;
+    amount: string;
+    description: string;
+  }>({ title: '', categoryId: '', expenseDate: '', amount: '', description: '' });
 
-  const expensesByCategory = categories.map(category => {
-    const categoryExpenses = filteredExpenses.filter(e => e.category === category);
-    const total = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
-    return { category, total, count: categoryExpenses.length };
-  });
+  const loadCategories = async () => {
+    try {
+      const data = await expenseCategoriesApi.list();
+      setCategories(data);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load categories');
+    }
+  };
+
+  const loadExpenses = async () => {
+    try {
+      setLoading(true);
+      const data = await expensesApi.getExpenses({
+        categoryId: filterCategoryId === '' ? undefined : Number(filterCategoryId),
+        expenseType: filterType === '' ? undefined : filterType,
+        minAmount: filterMinAmount ? Number(filterMinAmount) : undefined,
+        maxAmount: filterMaxAmount ? Number(filterMaxAmount) : undefined,
+        fromDate: filterStartDate || undefined,
+        toDate: filterEndDate || undefined,
+      });
+      setItems(data);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load expenses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    loadExpenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategoryId, filterType, filterMinAmount, filterMaxAmount, filterStartDate, filterEndDate]);
+
+  const totalExpenses = useMemo(() => items.reduce((sum, e) => sum + Number(e.amount ?? e.amount), 0), [items]);
+
+  const onOpenExpense = () => {
+    setForm({ title: '', categoryId: '', expenseDate: '', amount: '', description: '' });
+    setOpenExpense(true);
+  };
+  const onOpenAdjustment = () => {
+    setForm({ title: '', categoryId: '', expenseDate: '', amount: '', description: '' });
+    setOpenAdjustment(true);
+  };
+
+  const submitForm = async (type: ExpenseType) => {
+    try {
+      setLoading(true);
+      const payload: ExpenseEntryFormData = {
+        title: form.title.trim(),
+        categoryId: Number(form.categoryId),
+        expenseDate: form.expenseDate,
+        amount: Number(form.amount),
+        expenseType: type,
+        description: form.description ? form.description : undefined,
+      };
+      await expensesApi.createExpense(payload);
+      setOpenExpense(false);
+      setOpenAdjustment(false);
+      await loadExpenses();
+    } catch (e: any) {
+      setError(e.message || 'Failed to create entry');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
-          <p className="text-muted-foreground">
-            Track and manage business expenses
-          </p>
+          <p className="text-muted-foreground">Track and manage business expenses</p>
         </div>
-        <Button>Add Expense</Button>
+        <div className="flex gap-2">
+          <Button onClick={onOpenExpense}>Add Expense</Button>
+          <Button variant="destructive" onClick={onOpenAdjustment}>Adjustment</Button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Filters toggle */}
+      <div className="flex items-center justify-between">
+        <div />
+        <Button
+          onClick={() => {
+            if (!filtersOpen) {
+              setFiltersOpen(true);
+            } else {
+              // Clear all filters and hide panel
+              setFilterCategoryId('');
+              setFilterType('' as any);
+              setFilterMinAmount('');
+              setFilterMaxAmount('');
+              setFilterStartDate('');
+              setFilterEndDate('');
+              setFiltersOpen(false);
+            }
+          }}
+        >
+          {filtersOpen ? 'Remove filters' : 'Filter'}
+        </Button>
+      </div>
+
+      {filtersOpen && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <span className="text-2xl">💸</span>
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+            <CardDescription>Filter by category, type, amount and date range</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalExpenses)}</div>
-            <p className="text-xs text-muted-foreground">
-              {filteredExpenses.length} transactions
-            </p>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <select
+                className="px-3 py-2 border border-input rounded-md bg-background"
+                value={filterCategoryId}
+                onChange={(e) => setFilterCategoryId(e.target.value ? Number(e.target.value) : '')}
+              >
+                <option value="">All Categories</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2 border border-input rounded-md bg-background"
+                value={filterType}
+                onChange={(e) => setFilterType((e.target.value || '') as any)}
+              >
+                <option value="">All Types</option>
+                <option value="expense">Expense</option>
+                <option value="adjustment">Adjustment</option>
+              </select>
+              <Input type="number" placeholder="Min Amount (Rs)" value={filterMinAmount} onChange={(e) => setFilterMinAmount(e.target.value)} />
+              <Input type="number" placeholder="Max Amount (Rs)" value={filterMaxAmount} onChange={(e) => setFilterMaxAmount(e.target.value)} />
+              <Input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+              <Input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+            </div>
           </CardContent>
         </Card>
-
-        {expensesByCategory.map(({ category, total, count }) => (
-          <Card key={category}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{category}</CardTitle>
-              <span className="text-2xl">📊</span>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(total)}</div>
-              <p className="text-xs text-muted-foreground">
-                {count} transactions
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Input
-              placeholder="Search expenses..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <select
-              className="px-3 py-2 border border-input rounded-md bg-background"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-            <Input
-              type="date"
-              placeholder="Start Date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Input
-              type="date"
-              placeholder="End Date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      )}
 
       {/* Expenses Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Expense Records ({filteredExpenses.length})</CardTitle>
-          <CardDescription>
-            List of all business expenses
-          </CardDescription>
+          <CardTitle>Expense Records ({items.length})</CardTitle>
+          <CardDescription>List of all expenses and adjustments</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -160,33 +187,32 @@ export function Expenses() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-4">Title</th>
-                  <th className="text-left p-4">Description</th>
                   <th className="text-left p-4">Category</th>
-                  <th className="text-left p-4">Amount</th>
+                  <th className="text-left p-4">Type</th>
+                  <th className="text-left p-4">Amount (Rs)</th>
                   <th className="text-left p-4">Date</th>
-                  <th className="text-left p-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredExpenses.map((expense) => (
-                  <tr key={expense.id} className="border-b">
+                {items.map((e) => (
+                  <tr key={e.id} className="border-b">
                     <td className="p-4">
-                      <div className="font-medium">{expense.title}</div>
+                      <div className="font-medium">{e.title}</div>
+                      {e.description && (
+                        <div className="text-sm text-muted-foreground">{e.description}</div>
+                      )}
                     </td>
                     <td className="p-4">
-                      <div className="text-sm text-muted-foreground">{expense.description}</div>
+                      {/* Show category id; optionally map to name if needed */}
+                      <Badge variant="outline">#{e.categoryId}</Badge>
                     </td>
                     <td className="p-4">
-                      <Badge variant="outline">{expense.category}</Badge>
+                      <Badge variant={e.expenseType === 'adjustment' ? 'destructive' : 'secondary'}>
+                        {e.expenseType === 'adjustment' ? 'Adjustment' : 'Expense'}
+                      </Badge>
                     </td>
-                    <td className="p-4 font-medium">{formatCurrency(expense.amount)}</td>
-                    <td className="p-4">{formatDate(expense.expenseDate)}</td>
-                    <td className="p-4">
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">Edit</Button>
-                        <Button variant="destructive" size="sm">Delete</Button>
-                      </div>
-                    </td>
+                    <td className="p-4 font-medium">Rs {Number(e.amount).toFixed(2)}</td>
+                    <td className="p-4">{formatDate(e.expenseDate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -194,6 +220,94 @@ export function Expenses() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Expense Modal */}
+      <Dialog open={openExpense} onOpenChange={setOpenExpense}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+            <DialogClose />
+          </DialogHeader>
+          <div className="p-6 pt-0 space-y-4">
+            <div className="grid gap-2">
+              <label className="text-sm">Title</label>
+              <Input value={form.title} onChange={(e) => setForm(s => ({ ...s, title: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Category</label>
+              <select
+                className="px-3 py-2 border border-input rounded-md bg-background"
+                value={form.categoryId}
+                onChange={(e) => setForm(s => ({ ...s, categoryId: e.target.value ? Number(e.target.value) : '' }))}
+              >
+                <option value="">Select category</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Date</label>
+              <Input type="date" value={form.expenseDate} onChange={(e) => setForm(s => ({ ...s, expenseDate: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Amount (Rs)</label>
+              <Input type="number" value={form.amount} onChange={(e) => setForm(s => ({ ...s, amount: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Description</label>
+              <Input value={form.description} onChange={(e) => setForm(s => ({ ...s, description: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => submitForm('expense')} disabled={loading || !form.title || !form.categoryId || !form.expenseDate || !form.amount}>Create Expense</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adjustment Modal */}
+      <Dialog open={openAdjustment} onOpenChange={setOpenAdjustment}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adjustment</DialogTitle>
+            <DialogClose />
+          </DialogHeader>
+          <div className="p-6 pt-0 space-y-4">
+            <div className="grid gap-2">
+              <label className="text-sm">Title</label>
+              <Input value={form.title} onChange={(e) => setForm(s => ({ ...s, title: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Category</label>
+              <select
+                className="px-3 py-2 border border-input rounded-md bg-background"
+                value={form.categoryId}
+                onChange={(e) => setForm(s => ({ ...s, categoryId: e.target.value ? Number(e.target.value) : '' }))}
+              >
+                <option value="">Select category</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Date</label>
+              <Input type="date" value={form.expenseDate} onChange={(e) => setForm(s => ({ ...s, expenseDate: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Amount (Rs)</label>
+              <Input type="number" value={form.amount} onChange={(e) => setForm(s => ({ ...s, amount: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm">Description</label>
+              <Input value={form.description} onChange={(e) => setForm(s => ({ ...s, description: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="destructive" onClick={() => submitForm('adjustment')} disabled={loading || !form.title || !form.categoryId || !form.expenseDate || !form.amount}>Create Adjustment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

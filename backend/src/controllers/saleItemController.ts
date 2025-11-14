@@ -1,10 +1,10 @@
-// src/controllers/purchaseItemController.ts
+// src/controllers/saleItemController.ts
 import { Request, Response } from "express";
 import { db } from "../database/db";
-import { purchases } from "../models/purchases";
-import { purchaseItems } from "../models/purchase-items";
+import { sales } from "../models/sales";
+import { saleItems } from "../models/sale-items";
 import { products } from "../models/products";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
 function toDecimalString(value: any): string | null {
@@ -14,48 +14,47 @@ function toDecimalString(value: any): string | null {
   return num.toFixed(2);
 }
 
-export const listPurchaseItems = async (req: Request, res: Response) => {
+export const listSaleItems = async (req: Request, res: Response) => {
   try {
-    const purchaseId = Number(req.params.purchaseId);
-    if (!Number.isFinite(purchaseId)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid purchase id', { status: 400 });
+    const saleId = Number(req.params.saleId);
+    if (!Number.isFinite(saleId)) {
+      const err = makeApiError('BAD_REQUEST', 'Invalid sale id', { status: 400 });
       return res.status(400).json(fail(err));
     }
-    // Ensure purchase exists
-    const parent = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
+    const parent = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
     if (parent.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
-    // join products to include product name in response
     const rows = await db
       .select({
-        id: purchaseItems.id,
-        purchaseId: purchaseItems.purchaseId,
-        productId: purchaseItems.productId,
+        id: saleItems.id,
+        saleId: saleItems.saleId,
+        productId: saleItems.productId,
         productName: products.name,
-        quantity: purchaseItems.quantity,
-        unitPrice: purchaseItems.unitPrice,
-        total: purchaseItems.total,
-        createdAt: purchaseItems.createdAt,
+        quantity: saleItems.quantity,
+        unitPrice: saleItems.unitPrice,
+        total: saleItems.total,
+        createdAt: saleItems.createdAt,
       })
-      .from(purchaseItems)
-      .leftJoin(products, eq(purchaseItems.productId, products.id))
-      .where(eq(purchaseItems.purchaseId, purchaseId)).orderBy(desc(purchaseItems.createdAt));
-    return res.status(200).json(ok(rows as any, 'Purchase items fetched successfully', 200));
+      .from(saleItems)
+      .leftJoin(products, eq(saleItems.productId, products.id))
+      .where(eq(saleItems.saleId, saleId));
+
+    return res.status(200).json(ok(rows as any, 'Sale items fetched successfully', 200));
   } catch (err) {
-    console.error('listPurchaseItems error:', err);
+    console.error('listSaleItems error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const createPurchaseItem = async (req: Request, res: Response) => {
+export const createSaleItem = async (req: Request, res: Response) => {
   try {
-    const purchaseId = Number(req.params.purchaseId);
-    if (!Number.isFinite(purchaseId)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid purchase id', { status: 400 });
+    const saleId = Number(req.params.saleId);
+    if (!Number.isFinite(saleId)) {
+      const err = makeApiError('BAD_REQUEST', 'Invalid sale id', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
@@ -76,14 +75,12 @@ export const createPurchaseItem = async (req: Request, res: Response) => {
       return res.status(400).json(fail(err));
     }
 
-    // Ensure purchase exists
-    const parent = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
+    const parent = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
     if (parent.length === 0) {
-      const err = makeApiError('BAD_REQUEST', 'Purchase not found', { status: 400 });
+      const err = makeApiError('BAD_REQUEST', 'Sale not found', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    // Ensure product exists
     const prod = await db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
     if (prod.length === 0) {
       const err = makeApiError('BAD_REQUEST', 'Product not found', { status: 400 });
@@ -93,49 +90,49 @@ export const createPurchaseItem = async (req: Request, res: Response) => {
     const total = (Number(qtyStr) * Number(priceStr)).toFixed(2);
 
     const created = await db.transaction(async (tx) => {
-      const inserted = await tx.insert(purchaseItems).values({
-        purchaseId,
+      const inserted = await tx.insert(saleItems).values({
+        saleId,
         productId,
         quantity: qtyStr,
         unitPrice: priceStr,
         total,
       }).returning();
 
-      // Increase product stock by purchased quantity
+      // Decrease product stock by sold quantity
       const cur = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, productId)).limit(1);
       const currentQty = cur.length ? Number((cur[0] as any).quantity) : 0;
-      const newQty = (currentQty + Number(qtyStr)).toFixed(3);
+      const newQty = (currentQty - Number(qtyStr)).toFixed(3);
       await tx.update(products).set({ quantity: newQty as any }).where(eq(products.id, productId));
 
       return inserted[0];
     });
 
-    return res.status(201).json(ok(created, 'Purchase item created successfully', 201));
+    return res.status(201).json(ok(created, 'Sale item created successfully', 201));
   } catch (err) {
-    console.error('createPurchaseItem error:', err);
+    console.error('createSaleItem error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const updatePurchaseItem = async (req: Request, res: Response) => {
+export const updateSaleItem = async (req: Request, res: Response) => {
   try {
-    const purchaseId = Number(req.params.purchaseId);
+    const saleId = Number(req.params.saleId);
     const itemId = Number(req.params.itemId);
-    if (!Number.isFinite(purchaseId) || !Number.isFinite(itemId)) {
+    if (!Number.isFinite(saleId) || !Number.isFinite(itemId)) {
       const err = makeApiError('BAD_REQUEST', 'Invalid ids', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const parent = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
+    const parent = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
     if (parent.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
-    const existing = await db.select().from(purchaseItems).where(and(eq(purchaseItems.id, itemId), eq(purchaseItems.purchaseId, purchaseId))).limit(1);
+    const existing = await db.select().from(saleItems).where(and(eq(saleItems.id, itemId), eq(saleItems.saleId, saleId))).limit(1);
     if (existing.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase item not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale item not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
@@ -147,7 +144,6 @@ export const updatePurchaseItem = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid productId', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      // Ensure product exists
       const prod = await db.select({ id: products.id }).from(products).where(eq(products.id, body.productId)).limit(1);
       if (prod.length === 0) {
         const err = makeApiError('BAD_REQUEST', 'Product not found', { status: 400 });
@@ -177,17 +173,15 @@ export const updatePurchaseItem = async (req: Request, res: Response) => {
       payload.unitPrice = priceStr;
     }
 
-    // Compute total if quantity or unitPrice changed; else keep existing
     const curQty = qtyStr !== null ? Number(qtyStr) : Number((existing[0] as any).quantity);
     const curPrice = priceStr !== null ? Number(priceStr) : Number((existing[0] as any).unitPrice);
     payload.total = (curQty * curPrice).toFixed(2);
 
     const updated = await db.transaction(async (tx) => {
-      // Update the item first
       const updatedRows = await tx
-        .update(purchaseItems)
+        .update(saleItems)
         .set(payload)
-        .where(and(eq(purchaseItems.id, itemId), eq(purchaseItems.purchaseId, purchaseId)))
+        .where(and(eq(saleItems.id, itemId), eq(saleItems.saleId, saleId)))
         .returning();
 
       const oldProductId: string = (existing[0] as any).productId;
@@ -196,68 +190,65 @@ export const updatePurchaseItem = async (req: Request, res: Response) => {
       const newQty = qtyStr !== null ? Number(qtyStr) : oldQty;
 
       if (newProductId === oldProductId) {
-        // Adjust same product by delta
         const delta = newQty - oldQty;
         if (delta !== 0) {
           const cur = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, newProductId)).limit(1);
           const currentQty = cur.length ? Number((cur[0] as any).quantity) : 0;
-          const adj = (currentQty + delta).toFixed(3);
+          const adj = (currentQty - delta).toFixed(3); // subtract delta because positive delta means more sold -> reduce stock
           await tx.update(products).set({ quantity: adj as any }).where(eq(products.id, newProductId));
         }
       } else {
-        // Move quantity from old product to new product
+        // Move quantity from old product to new product: restore old stock, reduce new stock
         const curOld = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, oldProductId)).limit(1);
         const curOldQty = curOld.length ? Number((curOld[0] as any).quantity) : 0;
-        const newOldQty = (curOldQty - oldQty).toFixed(3);
+        const newOldQty = (curOldQty + oldQty).toFixed(3); // restore
         await tx.update(products).set({ quantity: newOldQty as any }).where(eq(products.id, oldProductId));
 
         const curNew = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, newProductId)).limit(1);
         const curNewQty = curNew.length ? Number((curNew[0] as any).quantity) : 0;
-        const newNewQty = (curNewQty + newQty).toFixed(3);
+        const newNewQty = (curNewQty - newQty).toFixed(3); // reduce
         await tx.update(products).set({ quantity: newNewQty as any }).where(eq(products.id, newProductId));
       }
 
       return updatedRows[0];
     });
 
-    return res.status(200).json(ok(updated, 'Purchase item updated successfully', 200));
+    return res.status(200).json(ok(updated, 'Sale item updated successfully', 200));
   } catch (err) {
-    console.error('updatePurchaseItem error:', err);
+    console.error('updateSaleItem error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const deletePurchaseItem = async (req: Request, res: Response) => {
+export const deleteSaleItem = async (req: Request, res: Response) => {
   try {
-    const purchaseId = Number(req.params.purchaseId);
+    const saleId = Number(req.params.saleId);
     const itemId = Number(req.params.itemId);
-    if (!Number.isFinite(purchaseId) || !Number.isFinite(itemId)) {
+    if (!Number.isFinite(saleId) || !Number.isFinite(itemId)) {
       const err = makeApiError('BAD_REQUEST', 'Invalid ids', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    // Ensure exists
-    const existing = await db.select().from(purchaseItems).where(and(eq(purchaseItems.id, itemId), eq(purchaseItems.purchaseId, purchaseId))).limit(1);
+    const existing = await db.select().from(saleItems).where(and(eq(saleItems.id, itemId), eq(saleItems.saleId, saleId))).limit(1);
     if (existing.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase item not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale item not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
     await db.transaction(async (tx) => {
-      // Delete the item
-      await tx.delete(purchaseItems).where(and(eq(purchaseItems.id, itemId), eq(purchaseItems.purchaseId, purchaseId)));
-      // Decrease product stock by the item's quantity
+      await tx.delete(saleItems).where(and(eq(saleItems.id, itemId), eq(saleItems.saleId, saleId)));
       const prodId: string = (existing[0] as any).productId;
       const qty = Number((existing[0] as any).quantity);
       const cur = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, prodId)).limit(1);
       const currentQty = cur.length ? Number((cur[0] as any).quantity) : 0;
-      const newQty = (currentQty - qty).toFixed(3);
+      const newQty = (currentQty + qty).toFixed(3); // restore stock
       await tx.update(products).set({ quantity: newQty as any }).where(eq(products.id, prodId));
     });
-    return res.status(200).json(ok(null, 'Purchase item deleted successfully', 200));
+
+    return res.status(200).json(ok(null, 'Sale item deleted successfully', 200));
   } catch (err) {
-    console.error('deletePurchaseItem error:', err);
+    console.error('deleteSaleItem error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }

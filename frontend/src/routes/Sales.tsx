@@ -1,69 +1,62 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/helpers';
-import type { Sale } from '@/lib/types';
-
-// Mock data
-const mockSales: Sale[] = [
-  {
-    id: '1',
-    productId: '1',
-    productName: 'Laptop Pro 15"',
-    quantity: 2,
-    unitPrice: 1299.99,
-    totalAmount: 2599.98,
-    customerName: 'John Doe',
-    customerEmail: 'john@example.com',
-    saleDate: '2024-01-15T10:00:00Z',
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: '2',
-    productId: '2',
-    productName: 'Wireless Mouse',
-    quantity: 5,
-    unitPrice: 49.99,
-    totalAmount: 249.95,
-    customerName: 'Jane Smith',
-    customerEmail: 'jane@example.com',
-    saleDate: '2024-01-14T14:30:00Z',
-    createdAt: '2024-01-14T14:30:00Z',
-    updatedAt: '2024-01-14T14:30:00Z',
-  },
-];
+import { customersApi, salesApi } from '@/lib/api';
+import { AddCustomerModal } from '@/components/AddCustomerModal';
+import { EditCustomerModal } from '@/components/EditCustomerModal';
+import type { Customer, SaleEntry } from '../../../shared/types';
 
 export function Sales() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredSales = mockSales.filter(sale => {
-    const matchesSearch = sale.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         sale.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStartDate = !startDate || sale.saleDate >= startDate;
-    const matchesEndDate = !endDate || sale.saleDate <= endDate;
+  const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
+    queryKey: ['customers'],
+    queryFn: () => customersApi.getCustomers(),
+  });
+
+  const { data: recentSales = [] } = useQuery<SaleEntry[]>({
+    queryKey: ['sales', { searchTerm, startDate, endDate }],
+    queryFn: () => salesApi.getSales(),
+  });
+
+  const filteredCustomers = customers.filter(c =>
+    !customerFilter || c.name.toLowerCase().includes(customerFilter.toLowerCase())
+  );
+
+  const filteredSales = recentSales.filter(s => {
+    const matchesSearch = !searchTerm || s.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStartDate = !startDate || s.date >= startDate;
+    const matchesEndDate = !endDate || s.date <= endDate;
     return matchesSearch && matchesStartDate && matchesEndDate;
   });
 
-  const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+  const totalRevenue = filteredSales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Sales</h1>
-          <p className="text-muted-foreground">
-            Track your sales and revenue
-          </p>
+          <p className="text-muted-foreground">Manage customers and sales invoices</p>
         </div>
-        <Button>Add Sale</Button>
+        <div className="flex gap-2">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setIsCustomerModalOpen(true)}>
+            Add Customer
+          </Button>
+        </div>
       </div>
 
-      {/* Summary Card */}
       <Card>
         <CardHeader>
           <CardTitle>Sales Summary</CardTitle>
@@ -79,87 +72,92 @@ export function Sales() {
               <div className="text-sm text-muted-foreground">Total Revenue</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">
-                {filteredSales.length > 0 ? formatCurrency(totalRevenue / filteredSales.length) : '$0.00'}
-              </div>
+              <div className="text-2xl font-bold">{filteredSales.length > 0 ? formatCurrency(totalRevenue / filteredSales.length) : '$0.00'}</div>
               <div className="text-sm text-muted-foreground">Average Sale</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Filters */}
-      <Card>
+      {/* Customers - Horizontal Cards Section */}
+      <Card className="overflow-visible">
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle>Customers</CardTitle>
+              <CardDescription>Browse customers. Click to view details.</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search by name..."
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="w-56"
+              />
+              <Button variant="outline" onClick={() => { /* live filter */ }}>Search</Button>
+              <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}>Refresh</Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              placeholder="Search sales..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Input
-              type="date"
-              placeholder="Start Date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Input
-              type="date"
-              placeholder="End Date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
+          {customersLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading customers...</div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No customers found.</div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {filteredCustomers.map((c) => (
+                <div
+                  key={c.id}
+                  className="min-w-[220px] rounded-lg border border-border p-4 hover:shadow cursor-pointer"
+                  onClick={() => navigate(`/sales/customers/${c.id}`)}
+                >
+                  <div className="text-sm text-muted-foreground">ID: {c.id}</div>
+                  <div className="text-base font-semibold">{c.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{c.email || '—'}</div>
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setEditingCustomer(c); }}>Edit</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Sales Table */}
-      <Card>
+      {/* Recent Sales Section */}
+      <Card className="overflow-visible">
         <CardHeader>
-          <CardTitle>Sales Records ({filteredSales.length})</CardTitle>
-          <CardDescription>
-            List of all sales transactions
-          </CardDescription>
+          <CardTitle>Recent Sales ({filteredSales.length})</CardTitle>
+          <CardDescription>Latest sales invoices</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="overflow-visible">
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] items-center gap-4">
+            <div className="flex gap-2">
+              <Input placeholder="Search invoices..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <Button variant="outline" onClick={() => { /* live filter */ }}>Search</Button>
+              <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['sales'] })}>Refresh</Button>
+            </div>
+            <Input type="date" placeholder="Start Date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input type="date" placeholder="End Date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          <div className="overflow-visible">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left p-4">Product</th>
-                  <th className="text-left p-4">Customer</th>
-                  <th className="text-left p-4">Quantity</th>
-                  <th className="text-left p-4">Unit Price</th>
-                  <th className="text-left p-4">Total</th>
+                <tr>
+                  <th className="text-left p-4">Invoice #</th>
                   <th className="text-left p-4">Date</th>
-                  <th className="text-left p-4">Actions</th>
+                  <th className="text-right p-4">Total</th>
+                  <th className="text-left p-4">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSales.map((sale) => (
-                  <tr key={sale.id} className="border-b">
-                    <td className="p-4">
-                      <div className="font-medium">{sale.productName}</div>
-                    </td>
-                    <td className="p-4">
-                      <div>
-                        <div className="font-medium">{sale.customerName}</div>
-                        <div className="text-sm text-muted-foreground">{sale.customerEmail}</div>
-                      </div>
-                    </td>
-                    <td className="p-4">{sale.quantity}</td>
-                    <td className="p-4">{formatCurrency(sale.unitPrice)}</td>
-                    <td className="p-4 font-medium">{formatCurrency(sale.totalAmount)}</td>
-                    <td className="p-4">{formatDate(sale.saleDate)}</td>
-                    <td className="p-4">
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">Edit</Button>
-                        <Button variant="destructive" size="sm">Delete</Button>
-                      </div>
-                    </td>
+                {filteredSales.map((s) => (
+                  <tr key={s.id}>
+                    <td className="p-4 font-medium">{s.invoiceNumber}</td>
+                    <td className="p-4">{formatDate(s.date)}</td>
+                    <td className="p-4 text-right font-medium">{formatCurrency(Number(s.totalAmount))}</td>
+                    <td className="p-4 capitalize">{s.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -167,6 +165,14 @@ export function Sales() {
           </div>
         </CardContent>
       </Card>
+
+      <AddCustomerModal open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen} />
+      <EditCustomerModal
+        open={!!editingCustomer}
+        onOpenChange={(open: boolean) => { if (!open) setEditingCustomer(null); }}
+        customer={editingCustomer}
+        onSaved={() => { queryClient.invalidateQueries({ queryKey: ['customers'] }); setEditingCustomer(null); }}
+      />
     </div>
   );
 }

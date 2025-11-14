@@ -11,8 +11,10 @@ import { Inventory } from '@/routes/Inventory';
 import { Sales } from '@/routes/Sales';
 import { Purchases } from '@/routes/Purchases';
 import { PurchaseSupplier } from '@/routes/PurchaseSupplier';
+import { SalesCustomer } from '@/routes/SalesCustomer';
 import { Expenses } from '@/routes/Expenses';
 import { Reports } from '@/routes/Reports';
+import { ReportsPurchase } from '@/routes/ReportsPurchase';
 import { Settings } from '@/routes/Settings';
 
 function App() {
@@ -34,10 +36,12 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/sales" element={<Sales />} />
+        <Route path="/sales/customers/:customerId" element={<SalesCustomer />} />
         <Route path="/purchases" element={<Purchases />} />
         <Route path="/purchases/suppliers/:supplierId" element={<PurchaseSupplier />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/reports/purchase" element={<ReportsPurchase />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

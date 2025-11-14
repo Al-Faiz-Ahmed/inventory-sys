@@ -3,24 +3,88 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/helpers';
 
-// Mock data for demonstration
-const mockStats = {
-  totalProducts: 156,
-  lowStockProducts: 12,
-  totalSales: 45680.50,
-  totalPurchases: 23450.75,
-  totalExpenses: 5670.25,
-  netProfit: 16559.50,
-};
+import { useEffect, useState } from 'react';
+import { inventoryApi, salesApi, purchasesApi, expensesApi, mainAccountApi } from '@/lib/api';
 
-const recentActivities = [
-  { id: 1, type: 'sale', description: 'Sold 5 units of Product A', amount: 250.00, time: '2 hours ago' },
-  { id: 2, type: 'purchase', description: 'Purchased 20 units of Product B', amount: 400.00, time: '4 hours ago' },
-  { id: 3, type: 'expense', description: 'Office supplies expense', amount: 75.50, time: '6 hours ago' },
-  { id: 4, type: 'sale', description: 'Sold 3 units of Product C', amount: 150.00, time: '8 hours ago' },
-];
+interface DashboardStats {
+  totalProducts: number;
+  lowStockProducts: number;
+  totalSales: number;
+  totalPurchases: number;
+  totalExpenses: number;
+  netProfit: number;
+  currentBalance: number;
+}
+
+
 
 export function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProducts: 0,
+    lowStockProducts: 0,
+    totalSales: 0,
+    totalPurchases: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    currentBalance: 0,
+  });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        // Current month range
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const [products, sales, purchases, expenses, main] = await Promise.all([
+          inventoryApi.getProducts(),
+          salesApi.getSales(),
+          purchasesApi.getPurchases(),
+          expensesApi.getExpenses({ fromDate: start.toISOString(), toDate: end.toISOString(), expenseType: 'expense' }),
+          mainAccountApi.list(),
+        ]);
+
+        const totalProducts = products.length;
+        const lowStockProducts = products.filter(p => Number(p.quantity) <= Number(p.minQuantity)).length;
+
+        const isInMonth = (d: string) => {
+          const dt = new Date(d).getTime();
+          return dt >= start.getTime() && dt <= end.getTime();
+        };
+
+        const totalSales = sales
+          .filter(s => isInMonth(s.date))
+          .reduce((sum, s) => sum + Number((s as any).totalAmount ?? 0), 0);
+
+        const totalPurchases = purchases
+          .filter(p => isInMonth(p.date))
+          .reduce((sum, p) => sum + Number((p as any).totalAmount ?? 0), 0);
+
+        const totalExpenses = expenses
+          .reduce((sum, e) => sum + Number((e as any).amount ?? 0), 0);
+
+        const netProfit = totalSales - totalPurchases - totalExpenses;
+
+        const sortedMain = [...main].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const currentBalance = sortedMain.length ? Number((sortedMain[0] as any).balanceAmount ?? 0) : 0;
+
+        setStats({
+          totalProducts,
+          lowStockProducts,
+          totalSales,
+          totalPurchases,
+          totalExpenses,
+          netProfit,
+          currentBalance,
+        });
+      } catch (err) {
+        // Fail silently for now on dashboard
+      }
+    };
+    load();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -38,49 +102,43 @@ export function Dashboard() {
             <span className="text-2xl">📦</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalProducts}</div>
+            <div className="text-2xl font-bold">{stats.totalProducts}</div>
             <p className="text-xs text-muted-foreground">
-              {mockStats.lowStockProducts} low stock items
+              {stats.lowStockProducts} low stock items
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Sales (This Month)</CardTitle>
             <span className="text-2xl">💰</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.totalSales)}</div>
-            <p className="text-xs text-muted-foreground">
-              +12% from last month
-            </p>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalSales)}</div>
+            
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+            <CardTitle className="text-sm font-medium">Net Profit (This Month)</CardTitle>
             <span className="text-2xl">📈</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.netProfit)}</div>
-            <p className="text-xs text-muted-foreground">
-              +8% from last month
-            </p>
+            <div className="text-2xl font-bold">{formatCurrency(stats.netProfit)}</div>
+            
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Purchases</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Purchases (This Month)</CardTitle>
             <span className="text-2xl">🛒</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.totalPurchases)}</div>
-            <p className="text-xs text-muted-foreground">
-              +5% from last month
-            </p>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalPurchases)}</div>
+            
           </CardContent>
         </Card>
 
@@ -90,9 +148,20 @@ export function Dashboard() {
             <span className="text-2xl">💸</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.totalExpenses)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalExpenses)}</div>
+            
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Main Account Balance</CardTitle>
+            <span className="text-2xl">🏦</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.currentBalance)}</div>
             <p className="text-xs text-muted-foreground">
-              +3% from last month
+              Current balance (latest)
             </p>
           </CardContent>
         </Card>
@@ -103,7 +172,7 @@ export function Dashboard() {
             <span className="text-2xl">⚠️</span>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{mockStats.lowStockProducts}</div>
+            <div className="text-2xl font-bold text-destructive">{stats.lowStockProducts}</div>
             <p className="text-xs text-muted-foreground">
               Products need restocking
             </p>
@@ -111,36 +180,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent Activities */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activities</CardTitle>
-          <CardDescription>
-            Latest transactions and updates
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">{activity.description}</p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge variant={activity.type === 'sale' ? 'default' : activity.type === 'purchase' ? 'secondary' : 'outline'}>
-                    {activity.type}
-                  </Badge>
-                  <span className="text-sm font-medium">{formatCurrency(activity.amount)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      
     </div>
   );
 }

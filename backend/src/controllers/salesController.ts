@@ -1,10 +1,10 @@
-// src/controllers/purchaseController.ts
+// src/controllers/salesController.ts
 import { Request, Response } from "express";
 import { db } from "../database/db";
-import { purchases } from "../models/purchases";
-import { suppliers } from "../models/supplier";
-import { supplierTransactions } from "../models/supplier-transactions";
-import { eq, and, desc } from "drizzle-orm";
+import { sales } from "../models/sales";
+import { customers } from "../models/customer";
+import { customerTransactions } from "../models/customer-transactions";
+import { desc, eq } from "drizzle-orm";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
 function toDecimalString(value: any): string | null {
@@ -14,56 +14,56 @@ function toDecimalString(value: any): string | null {
   return num.toFixed(2);
 }
 
-export const getPurchases = async (req: Request, res: Response) => {
+export const getSales = async (req: Request, res: Response) => {
   try {
-    const { supplierId } = req.query as { supplierId?: string };
+    const { customerId } = req.query as { customerId?: string };
     let rows;
-    if (supplierId !== undefined) {
-      const sid = Number(supplierId);
-      if (!Number.isFinite(sid)) {
-        const err = makeApiError('BAD_REQUEST', 'Invalid supplierId', { status: 400 });
+    const orderByClause = desc(sales.date);
+    if (customerId !== undefined) {
+      const cid = Number(customerId);
+      if (!Number.isFinite(cid)) {
+        const err = makeApiError('BAD_REQUEST', 'Invalid customerId', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      rows = await db.select().from(purchases).where(eq(purchases.supplierId, sid));
+      rows = await db.select().from(sales).where(eq(sales.customerId, cid)).orderBy(orderByClause);
     } else {
-      rows = await db.select().from(purchases);
+      rows = await db.select().from(sales).orderBy(orderByClause);
     }
-    return res.status(200).json(ok(rows, 'Purchases fetched successfully', 200));
+    return res.status(200).json(ok(rows, 'Sales fetched successfully', 200));
   } catch (err) {
-    console.error('getPurchases error:', err);
+    console.error('getSales error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const getPurchase = async (req: Request, res: Response) => {
+export const getSale = async (req: Request, res: Response) => {
   try {
     const idNum = Number(req.params.id);
     if (!Number.isFinite(idNum)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid purchase id', { status: 400 });
+      const err = makeApiError('BAD_REQUEST', 'Invalid sale id', { status: 400 });
       return res.status(400).json(fail(err));
     }
-    const rows = await db.select().from(purchases).where(eq(purchases.id, idNum)).limit(1);
+    const rows = await db.select().from(sales).where(eq(sales.id, idNum)).limit(1);
     if (rows.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
-    return res.status(200).json(ok(rows[0], 'Purchase fetched successfully', 200));
+    return res.status(200).json(ok(rows[0], 'Sale fetched successfully', 200));
   } catch (err) {
-    console.error('getPurchase error:', err);
+    console.error('getSale error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const createPurchase = async (req: Request, res: Response) => {
+export const createSale = async (req: Request, res: Response) => {
   try {
-    const { supplierId, invoiceNumber, date, totalAmount, /* paidAmount, */ status, description } = req.body || {};
+    const { customerId, invoiceNumber, date, totalAmount, status, description } = req.body || {};
 
-    // Basic validation
-    const supplierIdNum = Number(supplierId);
-    if (!Number.isFinite(supplierIdNum)) {
-      const err = makeApiError('BAD_REQUEST', 'supplierId is required', { status: 400 });
+    const customerIdNum = Number(customerId);
+    if (!Number.isFinite(customerIdNum)) {
+      const err = makeApiError('BAD_REQUEST', 'customerId is required', { status: 400 });
       return res.status(400).json(fail(err));
     }
     if (!invoiceNumber || typeof invoiceNumber !== 'string' || invoiceNumber.trim().length < 1) {
@@ -76,7 +76,6 @@ export const createPurchase = async (req: Request, res: Response) => {
     }
 
     const totalStr = toDecimalString(totalAmount);
-    // Enforce paid amount to be zero on creation
     const paidStr = toDecimalString(0);
     if (!totalStr || Number(totalStr) < 0) {
       const err = makeApiError('BAD_REQUEST', 'totalAmount must be >= 0', { status: 400 });
@@ -93,16 +92,15 @@ export const createPurchase = async (req: Request, res: Response) => {
       return res.status(400).json(fail(err));
     }
 
-    // FK: supplier exists
-    const sup = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, supplierIdNum)).limit(1);
-    if (sup.length === 0) {
-      const err = makeApiError('BAD_REQUEST', 'Supplier not found', { status: 400 });
+    const cust = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerIdNum)).limit(1);
+    if (cust.length === 0) {
+      const err = makeApiError('BAD_REQUEST', 'Customer not found', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
     const created = await db.transaction(async (tx) => {
-      const inserted = await tx.insert(purchases).values({
-        supplierId: supplierIdNum,
+      const inserted = await tx.insert(sales).values({
+        customerId: customerIdNum,
         invoiceNumber: String(invoiceNumber).trim(),
         date: new Date(date) as any,
         totalAmount: totalStr,
@@ -111,85 +109,72 @@ export const createPurchase = async (req: Request, res: Response) => {
         description: description ? String(description) : null,
       }).returning();
 
-      const purchase = inserted[0] as any;
+      const sale = inserted[0] as any;
 
-      // Compute running balance for supplier transaction
-      const lastTxn = await tx
-        .select({ id: supplierTransactions.id, balanceAmount: supplierTransactions.balanceAmount })
-        .from(supplierTransactions)
-        .where(eq(supplierTransactions.supplierId, supplierIdNum))
-        .orderBy(desc(supplierTransactions.id))
-        .limit(1);
-      const existingSup = await tx.select().from(suppliers).where(eq(suppliers.id, supplierIdNum)).limit(1);
-      const cur = existingSup[0] as any;
-      const prevBal = lastTxn.length ? Number(lastTxn[0].balanceAmount as any) : Number(cur.currentBalance);
-      const nextBal = (prevBal - Number(totalStr)).toFixed(2);
-
-      // Create supplier transaction of type 'purchase' with updated running balance
-      await tx.insert(supplierTransactions).values({
-        supplierId: supplierIdNum,
-        transactionType: 'purchase' as any,
+      // Create customer transaction of type 'sale'
+      await tx.insert(customerTransactions).values({
+        customerId: customerIdNum,
+        transactionType: 'sale' as any,
         amount: totalStr,
-        balanceAmount: nextBal as any,
-        referenceId: purchase.id,
+        referenceId: sale.id,
         description: `regarding ${String(invoiceNumber).trim()}`,
       });
 
-      // Update supplier balances: decrease currentBalance by total, increase debt by total
-      const newBalance = (Number(cur.currentBalance) - Number(totalStr)).toFixed(2);
-      const newDebt = (Number(cur.debt) + Number(totalStr)).toFixed(2);
+      // Update customer balances: increase currentBalance and receivable by total
+      const existingCust = await tx.select().from(customers).where(eq(customers.id, customerIdNum)).limit(1);
+      const cur = existingCust[0] as any;
+      const newBalance = (Number(cur.currentBalance) + Number(totalStr)).toFixed(2);
+      const newRecv = (Number(cur.receivable) + Number(totalStr)).toFixed(2);
 
-      await tx.update(suppliers)
+      await tx.update(customers)
         .set({
           currentBalance: newBalance,
-          debt: newDebt,
+          receivable: newRecv,
         })
-        .where(eq(suppliers.id, supplierIdNum));
+        .where(eq(customers.id, customerIdNum));
 
-      return purchase;
+      return sale;
     });
 
-    return res.status(201).json(ok(created, 'Purchase created successfully', 201));
+    return res.status(201).json(ok(created, 'Sale created successfully', 201));
   } catch (err) {
-    console.error('createPurchase error:', err);
+    console.error('createSale error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const updatePurchase = async (req: Request, res: Response) => {
+export const updateSale = async (req: Request, res: Response) => {
   try {
     const idNum = Number(req.params.id);
     if (!Number.isFinite(idNum)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid purchase id', { status: 400 });
+      const err = makeApiError('BAD_REQUEST', 'Invalid sale id', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const existing = await db.select().from(purchases).where(eq(purchases.id, idNum)).limit(1);
+    const existing = await db.select().from(sales).where(eq(sales.id, idNum)).limit(1);
     if (existing.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
     const body = req.body || {};
+    const payload: any = {};
 
-    // If supplierId updated, validate supplier exists
-    if (body.supplierId !== undefined) {
-      const sid = Number(body.supplierId);
-      if (!Number.isFinite(sid)) {
-        const err = makeApiError('BAD_REQUEST', 'Invalid supplierId', { status: 400 });
+    if (body.customerId !== undefined) {
+      const cid = Number(body.customerId);
+      if (!Number.isFinite(cid)) {
+        const err = makeApiError('BAD_REQUEST', 'Invalid customerId', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      const sup = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, sid)).limit(1);
-      if (sup.length === 0) {
-        const err = makeApiError('BAD_REQUEST', 'Supplier not found', { status: 400 });
+      const cust = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, cid)).limit(1);
+      if (cust.length === 0) {
+        const err = makeApiError('BAD_REQUEST', 'Customer not found', { status: 400 });
         return res.status(400).json(fail(err));
       }
+      payload.customerId = cid;
     }
 
-    // Build update payload
-    const payload: any = {};
-    if (body.supplierId !== undefined) payload.supplierId = Number(body.supplierId);
     if (body.invoiceNumber !== undefined) payload.invoiceNumber = String(body.invoiceNumber);
     if (body.date !== undefined) {
       if (!body.date || isNaN(Date.parse(body.date))) {
@@ -224,33 +209,33 @@ export const updatePurchase = async (req: Request, res: Response) => {
     }
     if (body.description !== undefined) payload.description = body.description ? String(body.description) : null;
 
-    const updated = await db.update(purchases).set(payload).where(eq(purchases.id, idNum)).returning();
-    return res.status(200).json(ok(updated[0], 'Purchase updated successfully', 200));
+    const updated = await db.update(sales).set(payload).where(eq(sales.id, idNum)).returning();
+    return res.status(200).json(ok(updated[0], 'Sale updated successfully', 200));
   } catch (err) {
-    console.error('updatePurchase error:', err);
+    console.error('updateSale error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const deletePurchase = async (req: Request, res: Response) => {
+export const deleteSale = async (req: Request, res: Response) => {
   try {
     const idNum = Number(req.params.id);
     if (!Number.isFinite(idNum)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid purchase id', { status: 400 });
+      const err = makeApiError('BAD_REQUEST', 'Invalid sale id', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const existing = await db.select().from(purchases).where(eq(purchases.id, idNum)).limit(1);
+    const existing = await db.select().from(sales).where(eq(sales.id, idNum)).limit(1);
     if (existing.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Purchase not found', { status: 404 });
+      const err = makeApiError('NOT_FOUND', 'Sale not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
-    await db.delete(purchases).where(eq(purchases.id, idNum));
-    return res.status(200).json(ok(null, 'Purchase deleted successfully', 200));
+    await db.delete(sales).where(eq(sales.id, idNum));
+    return res.status(200).json(ok(null, 'Sale deleted successfully', 200));
   } catch (err) {
-    console.error('deletePurchase error:', err);
+    console.error('deleteSale error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }

@@ -1,14 +1,14 @@
-// src/controllers/supplierTransactionController.ts
+// src/controllers/customerTransactionController.ts
 import { Request, Response } from "express";
 import { db } from "../database/db";
-import { suppliers } from "../models/supplier";
-import { purchases } from "../models/purchases";
-import { supplierTransactions } from "../models/supplier-transactions";
+import { customers } from "../models/customer";
+import { sales } from "../models/sales";
+import { customerTransactions } from "../models/customer-transactions";
 import { mainAccount } from "../models/main-account";
 import { eq, and, gte, lte, ilike, desc } from "drizzle-orm";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
-const allowedTypes = ['purchase','payment','refund','adjustment'] as const;
+const allowedTypes = ['sale','payment','refund','adjustment'] as const;
 
 function toDecimalString(value: any): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -17,23 +17,23 @@ function toDecimalString(value: any): string | null {
   return num.toFixed(2);
 }
 
-export const listSupplierTransactions = async (req: Request, res: Response) => {
+export const listCustomerTransactions = async (req: Request, res: Response) => {
   try {
-    const supplierId = Number(req.params.supplierId);
-    if (!Number.isFinite(supplierId)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid supplier id', { status: 400 });
+    const customerId = Number(req.params.customerId);
+    if (!Number.isFinite(customerId)) {
+      const err = makeApiError('BAD_REQUEST', 'Invalid customer id', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const sup = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
-    if (sup.length === 0) {
-      const err = makeApiError('NOT_FOUND', 'Supplier not found', { status: 404 });
+    const cust = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (cust.length === 0) {
+      const err = makeApiError('NOT_FOUND', 'Customer not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
     const { fromDate, toDate, transactionType, minAmount, maxAmount, search } = (req.query || {}) as any;
 
-    const whereClauses: any[] = [eq(supplierTransactions.supplierId, supplierId)];
+    const whereClauses: any[] = [eq(customerTransactions.customerId, customerId)];
 
     if (fromDate) {
       const d = new Date(fromDate);
@@ -41,7 +41,7 @@ export const listSupplierTransactions = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid fromDate', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      whereClauses.push(gte(supplierTransactions.createdAt, d as any));
+      whereClauses.push(gte(customerTransactions.createdAt, d as any));
     }
     if (toDate) {
       const d = new Date(toDate);
@@ -49,7 +49,7 @@ export const listSupplierTransactions = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid toDate', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      whereClauses.push(lte(supplierTransactions.createdAt, d as any));
+      whereClauses.push(lte(customerTransactions.createdAt, d as any));
     }
 
     if (transactionType) {
@@ -57,7 +57,7 @@ export const listSupplierTransactions = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid transactionType', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      whereClauses.push(eq(supplierTransactions.transactionType, transactionType as any));
+      whereClauses.push(eq(customerTransactions.transactionType, transactionType as any));
     }
 
     if (minAmount !== undefined && minAmount !== '') {
@@ -66,7 +66,7 @@ export const listSupplierTransactions = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid minAmount', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      whereClauses.push(gte(supplierTransactions.amount, s as any));
+      whereClauses.push(gte(customerTransactions.amount, s as any));
     }
     if (maxAmount !== undefined && maxAmount !== '') {
       const s = toDecimalString(maxAmount);
@@ -74,38 +74,38 @@ export const listSupplierTransactions = async (req: Request, res: Response) => {
         const err = makeApiError('BAD_REQUEST', 'Invalid maxAmount', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      whereClauses.push(lte(supplierTransactions.amount, s as any));
+      whereClauses.push(lte(customerTransactions.amount, s as any));
     }
 
     if (search && String(search).trim().length > 0) {
       const q = `%${String(search).trim()}%`;
-      whereClauses.push(ilike(supplierTransactions.description, q));
+      whereClauses.push(ilike(customerTransactions.description, q));
     }
 
     const rows = await db
       .select()
-      .from(supplierTransactions)
+      .from(customerTransactions)
       .where(whereClauses.length > 1 ? and(...whereClauses) : whereClauses[0]);
-    return res.status(200).json(ok(rows, 'Supplier transactions fetched successfully', 200));
+    return res.status(200).json(ok(rows, 'Customer transactions fetched successfully', 200));
   } catch (err) {
-    console.error('listSupplierTransactions error:', err);
+    console.error('listCustomerTransactions error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const createSupplierTransaction = async (req: Request, res: Response) => {
+export const createCustomerTransaction = async (req: Request, res: Response) => {
   try {
-    const supplierId = Number(req.params.supplierId);
-    if (!Number.isFinite(supplierId)) {
-      const err = makeApiError('BAD_REQUEST', 'Invalid supplier id', { status: 400 });
+    const customerId = Number(req.params.customerId);
+    if (!Number.isFinite(customerId)) {
+      const err = makeApiError('BAD_REQUEST', 'Invalid customer id', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
     const { transactionType, amount, referenceId, description } = req.body || {};
 
     if (!transactionType || !allowedTypes.includes(String(transactionType) as any)) {
-      const err = makeApiError('BAD_REQUEST', "transactionType must be one of 'purchase','payment','refund','adjustment'", { status: 400 });
+      const err = makeApiError('BAD_REQUEST', "transactionType must be one of 'sale','payment','refund','adjustment'", { status: 400 });
       return res.status(400).json(fail(err));
     }
 
@@ -115,14 +115,12 @@ export const createSupplierTransaction = async (req: Request, res: Response) => 
       return res.status(400).json(fail(err));
     }
 
-    // ensure supplier exists
-    const sup = await db.select({ id: suppliers.id, currentBalance: suppliers.currentBalance, debt: suppliers.debt }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
-    if (sup.length === 0) {
-      const err = makeApiError('BAD_REQUEST', 'Supplier not found', { status: 400 });
+    const cust = await db.select({ id: customers.id, currentBalance: customers.currentBalance, receivable: customers.receivable }).from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (cust.length === 0) {
+      const err = makeApiError('BAD_REQUEST', 'Customer not found', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    // if referenceId provided, ensure purchase exists
     let refIdNum: number | null = null;
     if (referenceId !== undefined && referenceId !== null) {
       refIdNum = Number(referenceId);
@@ -130,38 +128,26 @@ export const createSupplierTransaction = async (req: Request, res: Response) => 
         const err = makeApiError('BAD_REQUEST', 'Invalid referenceId', { status: 400 });
         return res.status(400).json(fail(err));
       }
-      const pur = await db.select({ id: purchases.id }).from(purchases).where(eq(purchases.id, refIdNum)).limit(1);
-      if (pur.length === 0) {
-        const err = makeApiError('BAD_REQUEST', 'Referenced purchase not found', { status: 400 });
+      const s = await db.select({ id: sales.id }).from(sales).where(eq(sales.id, refIdNum)).limit(1);
+      if (s.length === 0) {
+        const err = makeApiError('BAD_REQUEST', 'Referenced sale not found', { status: 400 });
         return res.status(400).json(fail(err));
       }
     }
 
-    // Compute running balance for this supplier based on last transaction
-    const lastTxn = await db
-      .select({ id: supplierTransactions.id, balanceAmount: supplierTransactions.balanceAmount })
-      .from(supplierTransactions)
-      .where(eq(supplierTransactions.supplierId, supplierId))
-      .orderBy(desc(supplierTransactions.id))
-      .limit(1);
-    const prevBal = lastTxn.length ? Number(lastTxn[0].balanceAmount as any) : Number((sup[0] as any).currentBalance);
-    const amtNumForBal = Number(amountStr);
-    const isIncrease = transactionType === 'payment' || transactionType === 'refund' || transactionType === 'adjustment';
-    const nextBal = (isIncrease ? prevBal + amtNumForBal : prevBal - amtNumForBal);
-    const nextBalStr = nextBal.toFixed(2);
-
-    const inserted = await db.insert(supplierTransactions).values({
-      supplierId,
+    const inserted = await db.insert(customerTransactions).values({
+      customerId,
       transactionType: transactionType as any,
       amount: amountStr,
-      balanceAmount: nextBalStr as any,
       referenceId: refIdNum,
       description: description ? String(description) : null,
     }).returning();
 
+    // main account mapping per requirements:
+    // payment = credit (increase main balance), refund = debit (decrease main balance), adjustment = debit (decrease main balance)
     if (transactionType === 'payment' || transactionType === 'refund' || transactionType === 'adjustment') {
-      const mainTxnType = transactionType === 'payment' ? 'debit' : 'credit';
-      const mainSrcType = transactionType === 'payment' ? 'supplier' : (transactionType === 'refund' ? 'supplier_refund' : 'adjustment');
+      const mainTxnType = (transactionType === 'payment') ? 'credit' : 'debit';
+      const mainSrcType = transactionType === 'payment' ? 'customer' : (transactionType === 'refund' ? 'customer_refund' : 'adjustment');
 
       const last = await db
         .select({ balanceAmount: mainAccount.balanceAmount })
@@ -176,7 +162,7 @@ export const createSupplierTransaction = async (req: Request, res: Response) => 
       await db.insert(mainAccount).values({
         transactionType: mainTxnType as any,
         sourceType: mainSrcType as any,
-        sourceId: supplierId,
+        sourceId: customerId,
         referenceId: refIdNum,
         transactionAmount: amountStr,
         balanceAmount: newBalanceStr as any,
@@ -184,50 +170,55 @@ export const createSupplierTransaction = async (req: Request, res: Response) => 
       });
     }
 
-    const supRow = sup[0] as any;
-    const cbNum = Number(supRow.currentBalance);
-    const debtNum = Number(supRow.debt);
+    const row = cust[0] as any;
+    const cbNum = Number(row.currentBalance);
+    const recvNum = Number(row.receivable);
     const amtNum = Number(amountStr);
 
     if (transactionType === 'payment') {
-      const newDebt = Math.max(0, debtNum - amtNum);
-      const newCB = cbNum + amtNum;
-      await db.update(suppliers).set({
-        currentBalance: newCB.toFixed(2) as any,
-        debt: newDebt.toFixed(2) as any,
-      }).where(eq(suppliers.id, supplierId));
-    } else if (transactionType === 'refund' || transactionType === 'adjustment') {
-      const newCB = cbNum + amtNum;
-      await db.update(suppliers).set({
-        currentBalance: newCB.toFixed(2) as any,
-      }).where(eq(suppliers.id, supplierId));
-    } else if (transactionType === 'purchase') {
-      const newDebt = debtNum + amtNum;
+      // payment: decrease both balance and receivable
+      const newRecv = recvNum - amtNum;
       const newCB = cbNum - amtNum;
-      await db.update(suppliers).set({
+      await db.update(customers).set({
         currentBalance: newCB.toFixed(2) as any,
-        debt: newDebt.toFixed(2) as any,
-      }).where(eq(suppliers.id, supplierId));
+        receivable: newRecv.toFixed(2) as any,
+      }).where(eq(customers.id, customerId));
+    } else if (transactionType === 'refund') {
+      // refund: we pay customer -> decrease both balance and receivable
+      const newRecv = recvNum - amtNum;
+      const newCB = cbNum - amtNum;
+      await db.update(customers).set({
+        currentBalance: newCB.toFixed(2) as any,
+        receivable: newRecv.toFixed(2) as any,
+      }).where(eq(customers.id, customerId));
+    } else if (transactionType === 'adjustment') {
+      // adjustment for wrong payment: increase both balance and receivable
+      const newRecv = recvNum + amtNum;
+      const newCB = cbNum + amtNum;
+      await db.update(customers).set({
+        currentBalance: newCB.toFixed(2) as any,
+        receivable: newRecv.toFixed(2) as any,
+      }).where(eq(customers.id, customerId));
     }
 
-    return res.status(201).json(ok(inserted[0], 'Supplier transaction created successfully', 201));
+    return res.status(201).json(ok(inserted[0], 'Customer transaction created successfully', 201));
   } catch (err) {
-    console.error('createSupplierTransaction error:', err);
+    console.error('createCustomerTransaction error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const updateSupplierTransaction = async (req: Request, res: Response) => {
+export const updateCustomerTransaction = async (req: Request, res: Response) => {
   try {
-    const supplierId = Number(req.params.supplierId);
+    const customerId = Number(req.params.customerId);
     const idNum = Number(req.params.transactionId);
-    if (!Number.isFinite(supplierId) || !Number.isFinite(idNum)) {
+    if (!Number.isFinite(customerId) || !Number.isFinite(idNum)) {
       const err = makeApiError('BAD_REQUEST', 'Invalid ids', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const existing = await db.select().from(supplierTransactions).where(and(eq(supplierTransactions.id, idNum), eq(supplierTransactions.supplierId, supplierId))).limit(1);
+    const existing = await db.select().from(customerTransactions).where(and(eq(customerTransactions.id, idNum), eq(customerTransactions.customerId, customerId))).limit(1);
     if (existing.length === 0) {
       const err = makeApiError('NOT_FOUND', 'Transaction not found', { status: 404 });
       return res.status(404).json(fail(err));
@@ -262,9 +253,9 @@ export const updateSupplierTransaction = async (req: Request, res: Response) => 
           const err = makeApiError('BAD_REQUEST', 'Invalid referenceId', { status: 400 });
           return res.status(400).json(fail(err));
         }
-        const pur = await db.select({ id: purchases.id }).from(purchases).where(eq(purchases.id, refIdNum)).limit(1);
-        if (pur.length === 0) {
-          const err = makeApiError('BAD_REQUEST', 'Referenced purchase not found', { status: 400 });
+        const s = await db.select({ id: sales.id }).from(sales).where(eq(sales.id, refIdNum)).limit(1);
+        if (s.length === 0) {
+          const err = makeApiError('BAD_REQUEST', 'Referenced sale not found', { status: 400 });
           return res.status(400).json(fail(err));
         }
         payload.referenceId = refIdNum;
@@ -275,35 +266,35 @@ export const updateSupplierTransaction = async (req: Request, res: Response) => 
       payload.description = body.description ? String(body.description) : null;
     }
 
-    const updated = await db.update(supplierTransactions).set(payload).where(and(eq(supplierTransactions.id, idNum), eq(supplierTransactions.supplierId, supplierId))).returning();
+    const updated = await db.update(customerTransactions).set(payload).where(and(eq(customerTransactions.id, idNum), eq(customerTransactions.customerId, customerId))).returning();
 
-    return res.status(200).json(ok(updated[0], 'Supplier transaction updated successfully', 200));
+    return res.status(200).json(ok(updated[0], 'Customer transaction updated successfully', 200));
   } catch (err) {
-    console.error('updateSupplierTransaction error:', err);
+    console.error('updateCustomerTransaction error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }
 };
 
-export const deleteSupplierTransaction = async (req: Request, res: Response) => {
+export const deleteCustomerTransaction = async (req: Request, res: Response) => {
   try {
-    const supplierId = Number(req.params.supplierId);
+    const customerId = Number(req.params.customerId);
     const idNum = Number(req.params.transactionId);
-    if (!Number.isFinite(supplierId) || !Number.isFinite(idNum)) {
+    if (!Number.isFinite(customerId) || !Number.isFinite(idNum)) {
       const err = makeApiError('BAD_REQUEST', 'Invalid ids', { status: 400 });
       return res.status(400).json(fail(err));
     }
 
-    const existing = await db.select().from(supplierTransactions).where(and(eq(supplierTransactions.id, idNum), eq(supplierTransactions.supplierId, supplierId))).limit(1);
+    const existing = await db.select().from(customerTransactions).where(and(eq(customerTransactions.id, idNum), eq(customerTransactions.customerId, customerId))).limit(1);
     if (existing.length === 0) {
       const err = makeApiError('NOT_FOUND', 'Transaction not found', { status: 404 });
       return res.status(404).json(fail(err));
     }
 
-    await db.delete(supplierTransactions).where(and(eq(supplierTransactions.id, idNum), eq(supplierTransactions.supplierId, supplierId)));
-    return res.status(200).json(ok(null, 'Supplier transaction deleted successfully', 200));
+    await db.delete(customerTransactions).where(and(eq(customerTransactions.id, idNum), eq(customerTransactions.customerId, customerId)));
+    return res.status(200).json(ok(null, 'Customer transaction deleted successfully', 200));
   } catch (err) {
-    console.error('deleteSupplierTransaction error:', err);
+    console.error('deleteCustomerTransaction error:', err);
     const apiErr = makeApiError('INTERNAL_SERVER_ERROR', 'Server error', { status: 500 });
     return res.status(500).json(fail(apiErr));
   }

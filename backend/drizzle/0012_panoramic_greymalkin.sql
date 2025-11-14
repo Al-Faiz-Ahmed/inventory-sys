@@ -1,0 +1,2 @@
+ALTER TABLE "customer_transactions" ADD COLUMN "balance_amount" numeric(15, 2) DEFAULT '0' NOT NULL;--> statement-breakpoint
+ALTER TABLE "supplier_transactions" ADD COLUMN "balance_amount" numeric(15, 2) DEFAULT '0' NOT NULL;

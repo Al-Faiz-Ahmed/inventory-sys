@@ -253,6 +253,7 @@ export interface SupplierTransactionEntry {
   supplierId: number;
   transactionType: SupplierTransactionType;
   amount: number;
+  balanceAmount: number;
   referenceId?: number | null;
   description?: string;
   createdAt: string;
@@ -261,6 +262,93 @@ export interface SupplierTransactionEntry {
 export interface SupplierTransactionFormData {
   transactionType: SupplierTransactionType;
   amount: number;
+  balanceAmount?: number; // optional, defaults to 0 on server
+  referenceId?: number | null;
+  description?: string;
+}
+
+// Customer (sales-linked) schema types
+export interface Customer {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  contactPerson?: string;
+  address?: string;
+  description?: string;
+  currentBalance: number;
+  receivable: number;
+  createdAt: string;
+}
+
+export interface CustomerFormData {
+  name: string;
+  email?: string;
+  phone?: string;
+  contactPerson?: string;
+  address?: string;
+  description?: string;
+}
+
+export type SaleStatus = 'paid' | 'unpaid' | 'partial';
+
+export interface SaleEntry {
+  id: number;
+  customerId: number;
+  invoiceNumber: string;
+  date: string; // ISO date string
+  totalAmount: number;
+  paidAmount: number;
+  status: SaleStatus;
+  description?: string;
+  createdAt: string;
+}
+
+export interface SaleEntryFormData {
+  customerId: number;
+  invoiceNumber: string;
+  date: string; // ISO date string
+  totalAmount: number;
+  paidAmount?: number;
+  status: SaleStatus;
+  description?: string;
+}
+
+export interface SaleItemEntry {
+  id: number;
+  saleId: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface SaleItemFormData {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+// Customer Transactions
+export type CustomerTransactionType = 'sale' | 'payment' | 'refund' | 'adjustment';
+
+export interface CustomerTransactionEntry {
+  id: number;
+  customerId: number;
+  transactionType: CustomerTransactionType;
+  amount: number;
+  balanceAmount: number;
+  referenceId?: number | null;
+  description?: string;
+  createdAt: string;
+}
+
+export interface CustomerTransactionFormData {
+  transactionType: CustomerTransactionType;
+  amount: number;
+  balanceAmount?: number; // optional, defaults to 0 on server
   referenceId?: number | null;
   description?: string;
 }
@@ -331,4 +419,51 @@ export interface SupplierTransactionsFilters {
   maxAmount?: number;
   search?: string;
 }
+
+// Customer Transactions Filters (aligns with backend params similar to supplier)
+export interface CustomerTransactionsFilters {
+  fromDate?: string;
+  toDate?: string;
+  transactionType?: CustomerTransactionType;
+  minAmount?: number;
+  maxAmount?: number;
+  search?: string;
+}
+
+
+// Expense Categories (new backend-aligned)
+export interface ExpenseCategoryEntry {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ExpenseCategoryFormData {
+  name: string;
+  description?: string;
+}
+
+// Expenses (new backend-aligned)
+export interface ExpenseEntry {
+  id: number;
+  categoryId: number;
+  title: string;
+  expenseDate: string; // ISO date string
+  amount: number;
+  expenseType: ExpenseType;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ExpenseEntryFormData {
+  categoryId: number;
+  title: string;
+  expenseDate: string; // ISO date string
+  amount: number;
+  expenseType?: ExpenseType; // defaults to 'expense' if omitted
+  description?: string;
+}
+
+export type ExpenseType = 'expense' | 'adjustment';
 
