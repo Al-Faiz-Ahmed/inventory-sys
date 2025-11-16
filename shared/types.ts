@@ -467,3 +467,48 @@ export interface ExpenseEntryFormData {
 
 export type ExpenseType = 'expense' | 'adjustment';
 
+// Main Inventory types
+export interface MainInventory {
+  id: number;
+  productId: string;
+  productName?: string;
+  productSku?: string;
+  transactionType: 'sale' | 'purchase' | 'refund' | 'adjustment' | 'miscelleneous';
+  quantity: number;
+  stockQuantity: number;
+  unitPrice: number;
+  costPrice: number;
+  sellPrice: number;
+  avgPrice: number;
+  previousCostPrice: number;
+  previousSellPrice: number;
+  previousAvgPrice: number;
+  supplierId?: number;
+  customerId?: number;
+  supplierInvoiceNumber?: string;
+  customerInvoiceNumber?: string;
+  totalAmount: number;
+  description?: string;
+  createdAt: string;
+}
+
+export interface MainInventoryFormData {
+  productId: string;
+  transactionType: 'sale' | 'purchase' | 'refund' | 'adjustment' | 'miscelleneous';
+  quantity: number;
+  stockQuantity: number;
+  unitPrice: number;
+  costPrice: number;
+  sellPrice: number;
+  avgPrice: number;
+  previousCostPrice?: number;
+  previousSellPrice?: number;
+  previousAvgPrice?: number;
+  supplierId?: number;
+  customerId?: number;
+  supplierInvoiceNumber?: string;
+  customerInvoiceNumber?: string;
+  totalAmount: number;
+  description?: string;
+}
+

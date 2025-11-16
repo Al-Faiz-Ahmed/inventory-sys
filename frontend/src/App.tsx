@@ -15,6 +15,9 @@ import { SalesCustomer } from '@/routes/SalesCustomer';
 import { Expenses } from '@/routes/Expenses';
 import { Reports } from '@/routes/Reports';
 import { ReportsPurchase } from '@/routes/ReportsPurchase';
+import { ReportsSales } from '@/routes/ReportsSales';
+import MainAccountReport from '@/routes/reports/MainAccountReport';
+import MainInventoryReport from '@/routes/reports/MainInventoryReport';
 import { Settings } from '@/routes/Settings';
 
 function App() {
@@ -42,6 +45,9 @@ function App() {
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/purchase" element={<ReportsPurchase />} />
+        <Route path="/reports/sales" element={<ReportsSales />} />
+        <Route path="/reports/main-account" element={<MainAccountReport />} />
+        <Route path="/reports/main-inventory" element={<MainInventoryReport />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

@@ -17,8 +17,9 @@ export function ReportsPurchase() {
   const defaultDateRange = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
     const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    return { start: toISO(start), end: toISO(now) };
+    return { start: toISO(start), end: toISO(end) };
   }, []);
 
   // (Supplier Transaction moved into its own component)

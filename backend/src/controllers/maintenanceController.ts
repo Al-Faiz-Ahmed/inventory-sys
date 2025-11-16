@@ -17,7 +17,8 @@ export const clearAllData = async (_req: Request, res: Response) => {
       "expense_categories",
       "products",
       "product_categories",
-      "main_account"
+      "main_account",
+      "main_inventory"
     ];
 
     const stmt = `TRUNCATE ${tables.map(t => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE;`;

@@ -135,10 +135,38 @@ export const createCustomerTransaction = async (req: Request, res: Response) => 
       }
     }
 
+    const row = cust[0] as any;
+    const cbNum = Number(row.currentBalance);
+    const recvNum = Number(row.receivable);
+    const amtNum = Number(amountStr);
+
+    let newCB = cbNum;
+    let newRecv = recvNum;
+
+    if (transactionType === 'payment') {
+      // payment: decrease both balance and receivable
+      newRecv = recvNum - amtNum;
+      newCB = cbNum - amtNum;
+    } else if (transactionType === 'refund') {
+      // refund: we pay customer -> decrease both balance and receivable
+      newRecv = recvNum - amtNum;
+      newCB = cbNum - amtNum;
+    } else if (transactionType === 'adjustment') {
+      // adjustment for wrong payment: increase both balance and receivable
+      newRecv = recvNum + amtNum;
+      newCB = cbNum + amtNum;
+    }
+
+    const newCBStr = newCB.toFixed(2);
+    const newRecvStr = newRecv.toFixed(2);
+
+    
+
     const inserted = await db.insert(customerTransactions).values({
       customerId,
       transactionType: transactionType as any,
       amount: amountStr,
+      balanceAmount: (transactionType === 'payment' || transactionType === 'refund' || transactionType === 'adjustment') ? (newCBStr as any) : undefined,
       referenceId: refIdNum,
       description: description ? String(description) : null,
     }).returning();
@@ -170,34 +198,10 @@ export const createCustomerTransaction = async (req: Request, res: Response) => 
       });
     }
 
-    const row = cust[0] as any;
-    const cbNum = Number(row.currentBalance);
-    const recvNum = Number(row.receivable);
-    const amtNum = Number(amountStr);
-
-    if (transactionType === 'payment') {
-      // payment: decrease both balance and receivable
-      const newRecv = recvNum - amtNum;
-      const newCB = cbNum - amtNum;
+    if (transactionType === 'payment' || transactionType === 'refund' || transactionType === 'adjustment') {
       await db.update(customers).set({
-        currentBalance: newCB.toFixed(2) as any,
-        receivable: newRecv.toFixed(2) as any,
-      }).where(eq(customers.id, customerId));
-    } else if (transactionType === 'refund') {
-      // refund: we pay customer -> decrease both balance and receivable
-      const newRecv = recvNum - amtNum;
-      const newCB = cbNum - amtNum;
-      await db.update(customers).set({
-        currentBalance: newCB.toFixed(2) as any,
-        receivable: newRecv.toFixed(2) as any,
-      }).where(eq(customers.id, customerId));
-    } else if (transactionType === 'adjustment') {
-      // adjustment for wrong payment: increase both balance and receivable
-      const newRecv = recvNum + amtNum;
-      const newCB = cbNum + amtNum;
-      await db.update(customers).set({
-        currentBalance: newCB.toFixed(2) as any,
-        receivable: newRecv.toFixed(2) as any,
+        currentBalance: newCBStr as any,
+        receivable: newRecvStr as any,
       }).where(eq(customers.id, customerId));
     }
 

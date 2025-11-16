@@ -1,0 +1,1 @@
+ALTER TABLE "main_inventory" ADD COLUMN "stock_quantity" numeric(15, 3) DEFAULT '0.000' NOT NULL;

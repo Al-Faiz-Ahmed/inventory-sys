@@ -52,6 +52,8 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [transactionType, setTransactionType] = useState<'refund' | 'adjustment' | 'miscelleneous' | ''>('');
+  const [showTransactionType, setShowTransactionType] = useState(false);
 
   // Prefill when opening
   useEffect(() => {
@@ -69,6 +71,8 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
       });
       setErrors({});
       setTouched({});
+      setTransactionType('');
+      setShowTransactionType(false);
     }
   }, [open, product]);
 
@@ -81,7 +85,7 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
 
   // Update product mutation (do not send SKU)
   const updateProductMutation = useMutation({
-    mutationFn: (data: ProductFormData) => {
+    mutationFn: (data: ProductFormData & { transactionType?: string }) => {
       const { sku: _sku, ...rest } = data as any;
       return inventoryApi.updateProduct((product as any)?.id, rest);
     },
@@ -132,10 +136,24 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
 
+    const newValue = type === 'number' ? (value === '' ? '' : parseFloat(value) || 0) : type === 'checkbox' ? checked : value;
+    
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value) || 0) : type === 'checkbox' ? checked : value,
+      [name]: newValue,
     } as any));
+
+    // Check if price, cost, or quantity changed
+    if (name === 'price' || name === 'cost' || name === 'quantity') {
+      const originalValue = name === 'price' ? Number(product?.price || 0) :
+                           name === 'cost' ? Number(product?.cost || 0) :
+                           Number(product?.quantity || 0);
+      const changedValue = Number(newValue);
+      
+      if (originalValue !== changedValue) {
+        setShowTransactionType(true);
+      }
+    }
 
     if (errors[name as keyof FormErrors]) {
       setErrors((prev) => {
@@ -153,7 +171,24 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) updateProductMutation.mutate(formData as any);
+    
+    // Check if we need transaction type
+    const priceChanged = Number(product?.price || 0) !== Number(formData.price);
+    const costChanged = Number(product?.cost || 0) !== Number(formData.cost);
+    const qtyChanged = Number(product?.quantity || 0) !== Number(formData.quantity);
+    
+    if ((priceChanged || costChanged || qtyChanged) && !transactionType) {
+      setErrors({ _general: 'Please select a transaction type when changing price, cost, or quantity' });
+      return;
+    }
+    
+    if (validate()) {
+      const submitData = { ...formData } as any;
+      if (priceChanged || costChanged || qtyChanged) {
+        submitData.transactionType = transactionType;
+      }
+      updateProductMutation.mutate(submitData);
+    }
   };
 
   const handleClose = () => {
@@ -271,6 +306,42 @@ export function EditProductModal({ open, onOpenChange, product, onUpdated }: Edi
                   </div>
                 </div>
               </div>
+
+              {/* Transaction Type Selector - shown when price, cost, or quantity changes */}
+              {showTransactionType && (
+                <div className="space-y-2">
+                  <Label htmlFor="transactionType" className="text-base font-medium">
+                    Transaction Type <span className="text-destructive">*</span>
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Please specify the type of change you're making to track it in inventory
+                  </p>
+                  <Select
+                    id="transactionType"
+                    name="transactionType"
+                    value={transactionType}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setTransactionType(value as 'refund' | 'adjustment' | 'miscelleneous');
+                      if (errors._general) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors._general;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    onBlur={() => handleBlur('transactionType')}
+                    aria-invalid={!!errors._general}
+                    error={!!errors._general}
+                  >
+                    <SelectOption value="">Select...</SelectOption>
+                    <SelectOption value="refund">Refund</SelectOption>
+                    <SelectOption value="adjustment">Adjustment</SelectOption>
+                    <SelectOption value="miscelleneous">Miscellaneous</SelectOption>
+                  </Select>
+                </div>
+              )}
 
               {/* Supplier field removed - supplier is not tracked on product */}
             </div>

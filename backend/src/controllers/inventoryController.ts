@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../database/db";
 import { products } from "../models/products";
 import { productCategories } from "../models/product-categories";
+import { mainInventory } from "../models/main-inventory";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
 // Helper: normalize numeric input to string for decimal fields, and numbers for integers
@@ -108,6 +109,31 @@ export const createProduct = async (req: Request, res: Response) => {
       })
       .returning();
 
+      const theLatestData = inserted[0];
+
+      const insertedIntoMainInventory = await db
+      .insert(mainInventory)
+      .values({
+        productId: theLatestData.id,
+        transactionType: 'miscelleneous',
+        quantity: theLatestData.quantity,
+        stockQuantity: theLatestData.quantity,
+        unitPrice: theLatestData.price,
+        sellPrice: theLatestData.price,
+        costPrice: theLatestData.cost,
+        avgPrice: "0.00",
+        previousCostPrice: "0.00",
+        previousSellPrice: "0.00",
+        previousAvgPrice: "0.00",
+        description:"This product is just created",
+        totalAmount: "0.00"
+      })
+      .returning();
+
+      // console.log("theLatestData", theLatestData);
+
+      
+
     return res.status(201).json(ok(inserted[0], "Product created successfully", 201));
   } catch (err) {
     console.error("createProduct error:", err);
@@ -176,6 +202,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     const incomingPriceStr = body.price !== undefined ? toDecimalString(body.price, 2) : null;
     const incomingCostStr = body.cost !== undefined ? toDecimalString(body.cost, 2) : null;
+    const incomingQtyStr = body.quantity !== undefined ? toDecimalString(body.quantity, 3) : null;
 
     // Start with defaults as current values
     let nextPrice = current.price as string;
@@ -184,10 +211,12 @@ export const updateProduct = async (req: Request, res: Response) => {
     let nextPrevCost = current.previousCost as string | null;
     let nextAvg = current.avgPrice as string | null;
     let nextPrevAvg = current.previousAvgPrice as string | null;
+    let nextQty = current.quantity as string;
 
     // Detect changes and move current to previous before applying
     const priceChanged = incomingPriceStr !== null && incomingPriceStr !== undefined && incomingPriceStr !== current.price;
     const costChanged = incomingCostStr !== null && incomingCostStr !== undefined && incomingCostStr !== current.cost;
+    const qtyChanged = incomingQtyStr !== null && incomingQtyStr !== undefined && incomingQtyStr !== current.quantity;
 
     if (priceChanged) {
       nextPrevPrice = current.price;
@@ -196,6 +225,9 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (costChanged) {
       nextPrevCost = current.cost;
       nextCost = incomingCostStr!;
+    }
+    if (qtyChanged) {
+      nextQty = incomingQtyStr!;
     }
 
     // If either price or cost changed, recompute avgPrice and move old avg to previousAvgPrice
@@ -210,28 +242,68 @@ export const updateProduct = async (req: Request, res: Response) => {
       nextAvg = avg;
     }
 
-    const updated = await db
-      .update(products)
-      .set({
-        name: body.name ?? existing[0].name,
-        description: body.description !== undefined ? body.description : existing[0].description,
-        sku: body.sku ?? existing[0].sku,
-        categoryId: body.categoryId ?? existing[0].categoryId,
-        price: nextPrice,
-        cost: nextCost,
-        previousPrice: nextPrevPrice ?? current.previousPrice,
-        previousCost: nextPrevCost ?? current.previousCost,
-        avgPrice: nextAvg ?? current.avgPrice,
-        previousAvgPrice: nextPrevAvg ?? current.previousAvgPrice,
-        quantity: body.quantity !== undefined ? toDecimalString(body.quantity, 3)! : (existing[0] as any).quantity,
-        minQuantity: body.minQuantity !== undefined ? toInteger(body.minQuantity)! : existing[0].minQuantity,
-        maxQuantity: body.maxQuantity !== undefined ? toInteger(body.maxQuantity)! : existing[0].maxQuantity,
-        updatedAt: new Date(),
-      })
-      .where(eq(products.id, id))
-      .returning();
+    // Check if we need to create a main_inventory entry
+    const shouldTrack = priceChanged || costChanged || qtyChanged;
+    const transactionType = shouldTrack ? body.transactionType : null;
 
-    return res.status(200).json(ok(updated[0], "Product updated successfully", 200));
+    if (shouldTrack && (!transactionType || !['refund', 'adjustment', 'miscelleneous'].includes(transactionType))) {
+      const err = makeApiError('BAD_REQUEST', 'transactionType is required when price, cost, or quantity changes. Must be one of: refund, adjustment, miscelleneous', { status: 400 });
+      return res.status(400).json(fail(err));
+    }
+
+    const updated = await db.transaction(async (tx) => {
+      const updatedProduct = await tx
+        .update(products)
+        .set({
+          name: body.name ?? existing[0].name,
+          description: body.description !== undefined ? body.description : existing[0].description,
+          sku: body.sku ?? existing[0].sku,
+          categoryId: body.categoryId ?? existing[0].categoryId,
+          price: nextPrice,
+          cost: nextCost,
+          previousPrice: nextPrevPrice ?? current.previousPrice,
+          previousCost: nextPrevCost ?? current.previousCost,
+          avgPrice: nextAvg ?? current.avgPrice,
+          previousAvgPrice: nextPrevAvg ?? current.previousAvgPrice,
+          quantity: nextQty,
+          minQuantity: body.minQuantity !== undefined ? toInteger(body.minQuantity)! : existing[0].minQuantity,
+          maxQuantity: body.maxQuantity !== undefined ? toInteger(body.maxQuantity)! : existing[0].maxQuantity,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, id))
+        .returning();
+
+      // Create main_inventory entry if tracking is needed
+      if (shouldTrack) {
+        // Get the updated product data
+        const updated = await tx.select().from(products).where(eq(products.id, id)).limit(1);
+        const updatedProduct = updated[0];
+        
+        // Calculate only what we need
+        const qtyDiff = updatedProduct.quantity;
+        const totalAmount = Math.abs(+qtyDiff) * Number(updatedProduct.price);
+        
+        await tx.insert(mainInventory).values({
+          productId: id,
+          transactionType,
+          quantity: Math.abs(+qtyDiff).toFixed(2),
+          stockQuantity: updatedProduct.quantity,
+          unitPrice: updatedProduct.price,
+          costPrice: updatedProduct.cost,
+          sellPrice: updatedProduct.price,
+          avgPrice: updatedProduct.avgPrice || '0.00',
+          previousCostPrice: updatedProduct.previousCost || '0.00',
+          previousSellPrice: updatedProduct.previousPrice || '0.00',
+          previousAvgPrice: updatedProduct.previousAvgPrice || '0.00',
+          totalAmount: totalAmount.toFixed(2),
+          description: `Product ${transactionType} - ${priceChanged ? 'price ' : ''}${costChanged ? 'cost ' : ''}${qtyChanged ? 'quantity ' : ''} updated`,
+        });
+      }
+
+      return updatedProduct;
+    });
+
+    return res.status(200).json(ok(updated, "Product updated successfully", 200));
   } catch (err) {
     console.error("updateProduct error:", err);
     const apiErr = makeApiError("INTERNAL_SERVER_ERROR", "Server error", { status: 500 });

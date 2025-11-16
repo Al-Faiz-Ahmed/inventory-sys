@@ -4,6 +4,7 @@ import { db } from "../database/db";
 import { purchases } from "../models/purchases";
 import { purchaseItems } from "../models/purchase-items";
 import { products } from "../models/products";
+import { mainInventory } from "../models/main-inventory";
 import { eq, and, desc } from "drizzle-orm";
 import { ok, fail, makeApiError } from "../../../shared/error";
 
@@ -101,11 +102,55 @@ export const createPurchaseItem = async (req: Request, res: Response) => {
         total,
       }).returning();
 
-      // Increase product stock by purchased quantity
-      const cur = await tx.select({ quantity: products.quantity }).from(products).where(eq(products.id, productId)).limit(1);
-      const currentQty = cur.length ? Number((cur[0] as any).quantity) : 0;
-      const newQty = (currentQty + Number(qtyStr)).toFixed(3);
-      await tx.update(products).set({ quantity: newQty as any }).where(eq(products.id, productId));
+      // Fetch current product to get previous prices and quantity
+      const productBefore = await tx.select().from(products).where(eq(products.id, productId)).limit(1);
+      if (productBefore.length === 0) {
+        throw new Error('Product not found');
+      }
+      const prod = productBefore[0];
+
+      const previousQty = Number(prod.quantity || 0);
+      const previousCost = Number(prod.cost || 0);
+      const previousSell = Number(prod.price || 0);
+      const previousAvg = Number(prod.avgPrice || 0);
+
+      const addedQty = Number(qtyStr);
+      const addedCost = Number(priceStr);
+      const newQty = previousQty + addedQty;
+
+      // Calculate new average cost price
+      const newAvgCost = newQty > 0
+        ? (previousQty * previousCost + addedQty * addedCost) / newQty
+        : 0;
+
+      // Update product quantity and cost/avg
+      await tx.update(products).set({
+        quantity: newQty.toFixed(3),
+        // cost: addedCost.toFixed(2),
+        // avgPrice: newAvgCost.toFixed(2),
+        // previousCost: previousCost.toFixed(2),
+        // previousPrice: previousSell.toFixed(2),
+        // previousAvgPrice: previousAvg.toFixed(2),
+      }).where(eq(products.id, productId));
+
+      // Insert into main_inventory
+      await tx.insert(mainInventory).values({
+        productId,
+        transactionType: 'purchase',
+        quantity: qtyStr,
+        stockQuantity: newQty.toFixed(3),
+        unitPrice: priceStr,
+        costPrice: priceStr,
+        sellPrice: previousSell.toFixed(2),
+        avgPrice: newAvgCost.toFixed(2),
+        previousCostPrice: previousCost.toFixed(2),
+        previousSellPrice: previousSell.toFixed(2),
+        previousAvgPrice: previousAvg.toFixed(2),
+        supplierId: parent[0].supplierId,
+        supplierInvoiceNumber: parent[0].invoiceNumber,
+        totalAmount: total,
+        description: `Purchase item added: ${productId}`,
+      });
 
       return inserted[0];
     });

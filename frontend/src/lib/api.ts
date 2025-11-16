@@ -36,6 +36,7 @@ import type {
   MainAccountEntry,
   MainAccountFormData,
   SupplierTransactionsFilters,
+  MainInventory,
 } from "../../../shared/types";
 import type { ApiEnvelope } from "../../../shared/error";
 
@@ -189,14 +190,17 @@ export const mainAccountApi = {
   list: async (filters?: {
     fromDate?: string;
     toDate?: string;
-    transactionType?: 'debit' | 'credit';
-    sourceType?: 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
+    transactionType?: ('debit' | 'credit')[] | 'debit' | 'credit';
+    sourceType?: ('supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other')[] | 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
     minAmount?: number;
     maxAmount?: number;
     sourceId?: number;
     referenceId?: number;
-  }): Promise<MainAccountEntry[]> => {
-    const response: AxiosResponse<ApiEnvelope<MainAccountEntry[]>> = await api.get(
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+  }): Promise<{ transactions: MainAccountEntry[]; totalBalance: string }> => {
+    const response: AxiosResponse<ApiEnvelope<{ transactions: MainAccountEntry[]; totalBalance: string }>> = await api.get(
       `/main-account`,
       { params: filters }
     );
@@ -208,6 +212,138 @@ export const mainAccountApi = {
       entry
     );
     return unwrap(response);
+  },
+  exportCSV: async (filters: {
+    fromDate?: string;
+    toDate?: string;
+    transactionType?: ('debit' | 'credit')[] | 'debit' | 'credit';
+    sourceType?: ('supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other')[] | 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
+    minAmount?: number;
+    maxAmount?: number;
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+  }): Promise<void> => {
+    const response = await api.post(
+      `/main-account/reports/main-account/csv`,
+      filters,
+      { responseType: 'blob' }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `main-account-report-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+  exportPDF: async (filters: {
+    fromDate?: string;
+    toDate?: string;
+    transactionType?: ('debit' | 'credit')[] | 'debit' | 'credit';
+    sourceType?: ('supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other')[] | 'supplier' | 'customer' | 'expense' | 'supplier_refund' | 'customer_refund' | 'adjustment' | 'other';
+    minAmount?: number;
+    maxAmount?: number;
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+  }): Promise<void> => {
+    const response = await api.post(
+      `/main-account/reports/main-account/pdf`,
+      filters,
+      { responseType: 'blob' }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `main-account-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+};
+
+// Main Inventory API
+export const mainInventoryApi = {
+  getTransactions: async (filters?: {
+    fromDate?: string;
+    toDate?: string;
+    productId?: string | string[];
+    productIds?: string[];
+    minQuantity?: string;
+    maxQuantity?: string;
+    minAmount?: string;
+    maxAmount?: string;
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }): Promise<{ transactions: MainInventory[]; summary: { totalTransactions: number; totalQuantity: number; totalAmount: number }; pagination: { limit: number; offset: number; hasMore: boolean } }> => {
+    const response: AxiosResponse<ApiEnvelope<{ transactions: MainInventory[]; summary: { totalTransactions: number; totalQuantity: number; totalAmount: number }; pagination: { limit: number; offset: number; hasMore: boolean } }>> = await api.get(
+      `/main-inventory`,
+      { params: filters }
+    );
+    return unwrap(response);
+  },
+  getTransaction: async (id: string): Promise<MainInventory> => {
+    const response: AxiosResponse<ApiEnvelope<MainInventory>> = await api.get(
+      `/main-inventory/${id}`
+    );
+    return unwrap(response);
+  },
+  getProductTransactions: async (productId: string, filters?: {
+    fromDate?: string;
+    toDate?: string;
+    transactionType?: ('sale' | 'purchase' | 'refund' | 'adjustment' | 'miscelleneous')[];
+    minQuantity?: string;
+    maxQuantity?: string;
+    minAmount?: string;
+    maxAmount?: string;
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }): Promise<{ transactions: MainInventory[]; pagination: { limit: number; offset: number; hasMore: boolean } }> => {
+    const response: AxiosResponse<ApiEnvelope<{ transactions: MainInventory[]; pagination: { limit: number; offset: number; hasMore: boolean } }>> = await api.get(
+      `/main-inventory/product/${productId}`,
+      { params: filters }
+    );
+    return unwrap(response);
+  },
+  exportPDF: async (filters: {
+    fromDate?: string;
+    toDate?: string;
+    productId?: string | string[];
+    productIds?: string[];
+    minQuantity?: number;
+    maxQuantity?: number;
+    minAmount?: number;
+    maxAmount?: number;
+    search?: string;
+    orderBy?: 'asc' | 'desc';
+    limit?: number;
+  }): Promise<void> => {
+    const response = await api.post(
+      `/main-inventory/reports/main-inventory/pdf`,
+      filters,
+      { responseType: 'blob' }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `main-inventory-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };
 
@@ -572,6 +708,60 @@ export const supplierTransactionsApi = {
       `/suppliers/${supplierId}/transactions/${transactionId}`
     );
     unwrap(response);
+  },
+  exportCSV: async (supplierId: number, filters?: SupplierTransactionsFilters): Promise<void> => {
+    const response = await api.get(
+      `/suppliers/${supplierId}/transactions/export/csv`,
+      { 
+        params: filters,
+        responseType: 'blob'
+      }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = `supplier-transactions-${Date.now()}.csv`;
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (fileNameMatch?.[1]) {
+        fileName = fileNameMatch[1];
+      }
+    }
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+  exportPDF: async (supplierId: number, filters?: SupplierTransactionsFilters): Promise<void> => {
+    const response = await api.get(
+      `/suppliers/${supplierId}/transactions/export/pdf`,
+      { 
+        params: filters,
+        responseType: 'blob'
+      }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = `supplier-transactions-${Date.now()}.pdf`;
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (fileNameMatch?.[1]) {
+        fileName = fileNameMatch[1];
+      }
+    }
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };
 

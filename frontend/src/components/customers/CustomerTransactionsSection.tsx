@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,11 +24,11 @@ export default function CustomerTransactionsSection({ customerId }: { customerId
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Sales for invoice search (fetched lazily when add modal opens)
+  // Sales for invoice search and reference mapping
   const salesQuery = useQuery({
     queryKey: ['sales-for-customer', customerId],
     queryFn: async () => salesApi.getSales({ customerId }),
-    enabled: openAdd && Number.isFinite(customerId),
+    enabled: Number.isFinite(customerId),
   });
 
   const query = useQuery<CustomerTransactionEntry[]>({
@@ -39,6 +39,11 @@ export default function CustomerTransactionsSection({ customerId }: { customerId
     } as any),
     enabled: Number.isFinite(customerId),
   });
+
+  const transactions = useMemo(() => {
+    if (!query.data) return [] as CustomerTransactionEntry[];
+    return [...query.data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [query.data]);
 
   return (
     <Card className="overflow-visible">
@@ -74,20 +79,30 @@ export default function CustomerTransactionsSection({ customerId }: { customerId
                   <th className="text-left p-2 md:p-3">Date</th>
                   <th className="text-left p-2 md:p-3">Type</th>
                   <th className="text-right p-2 md:p-3">Amount</th>
+                  <th className="text-right p-2 md:p-3">Balance</th>
                   <th className="text-left p-2 md:p-3">Reference</th>
                   <th className="text-left p-2 md:p-3">Description</th>
                 </tr>
               </thead>
               <tbody>
-                {query.data!.map((tx) => (
-                  <tr key={tx.id}>
-                    <td className="p-2 md:p-3">{formatDate(tx.createdAt)}</td>
-                    <td className="p-2 md:p-3 capitalize">{tx.transactionType}</td>
-                    <td className="p-2 md:p-3 text-right">{formatCurrency(tx.amount)}</td>
-                    <td className="p-2 md:p-3">{tx.referenceId ?? '—'}</td>
-                    <td className="p-2 md:p-3">{tx.description ?? '—'}</td>
-                  </tr>
-                ))}
+                {transactions.map((tx) => {
+                  const sale = tx.referenceId && salesQuery.data
+                    ? salesQuery.data.find((s) => s.id === tx.referenceId)
+                    : undefined;
+                  const referenceLabel = tx.referenceId
+                    ? (sale ? sale.invoiceNumber : `#${tx.referenceId}`)
+                    : '—';
+                  return (
+                    <tr key={tx.id}>
+                      <td className="p-2 md:p-3">{formatDate(tx.createdAt)}</td>
+                      <td className="p-2 md:p-3 capitalize">{tx.transactionType}</td>
+                      <td className="p-2 md:p-3 text-right">{formatCurrency(tx.amount)}</td>
+                      <td className="p-2 md:p-3 text-right">{formatCurrency(tx.balanceAmount)}</td>
+                      <td className="p-2 md:p-3">{referenceLabel}</td>
+                      <td className="p-2 md:p-3">{tx.description ?? '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

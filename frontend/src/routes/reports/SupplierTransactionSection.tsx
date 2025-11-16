@@ -12,8 +12,9 @@ export const SupplierTransactionSection: React.FC = () => {
   const defaultDateRange = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
     const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    return { start: toISO(start), end: toISO(now) };
+    return { start: toISO(start), end: toISO(end) };
   }, []);
 
   // modal open
@@ -59,85 +60,46 @@ export const SupplierTransactionSection: React.FC = () => {
   const [hasFetched, setHasFetched] = useState(false);
 
   // Exports
-  const handleExportCSV = () => {
-    if (!displayRows.length) return;
-    const headers = ['SR NO','ID','Type','Amount','Balance','Invoice No','Description','Date'];
-    const lines = [headers.join(',')];
-    displayRows.forEach((r, idx) => {
-      const row = [
-        idx + 1,
-        r.id,
-        r.transactionType,
-        Number(r.amount).toFixed(2),
-        Number(r.balanceAmount).toFixed(2),
-        r.invoiceNo ?? '-',
-        (r.description ?? '').replace(/\n/g, ' '),
-        new Date(r.createdAt).toLocaleDateString(),
-      ];
-      lines.push(row.map((v) => typeof v === 'string' && v.includes(',') ? `"${v.replace(/"/g, '""')}"` : String(v)).join(','));
-    });
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'supplier-transactions.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportCSV = async () => {
+    if (!selectedSupplier) return;
+    
+    try {
+      const exportFilters: any = {
+        fromDate: filters.startDate,
+        toDate: filters.endDate,
+        transactionType: Array.from(filters.txnTypes)[0] || undefined,
+        minAmount: filters.minAmount || undefined,
+        maxAmount: filters.maxAmount || undefined,
+        search: supplierQuery || undefined,
+      };
+      
+      await supplierTransactionsApi.exportCSV(selectedSupplier.id, exportFilters);
+    } catch (error: any) {
+      console.error('CSV export failed:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to export CSV';
+      alert(errorMessage);
+    }
   };
 
-  const handleExportPDF = () => {
-    if (!displayRows.length) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const styles = `
-      <style>
-        @page { margin: 16mm; }
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 0; }
-        .header { margin-bottom: 10px; }
-        .title { font-size: 16px; font-weight: 600; margin: 0 0 4px 0; }
-        .meta { font-size: 11px; color: #374151; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
-        .meta div { margin: 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; }
-        thead { background: #f4f4f5; }
-        thead { display: table-header-group; }
-      </style>
-    `;
-    const supName = supplierDetails?.name || selectedSupplier?.name || '-';
-    const supId = selectedSupplier?.id != null ? String(selectedSupplier.id) : '-';
-    const contact = supplierDetails?.contactPerson || supplierDetails?.phone || '-';
-    const dateRange = `${filters.startDate || '-'} to ${filters.endDate || '-'}`;
-    const header = `
-      <div class="header">
-        <div class="title">Supplier Transactions</div>
-        <div class="meta">
-          <div><strong>Supplier:</strong> ${escapeHtml(supName)}</div>
-          <div><strong>Supplier ID:</strong> ${supId}</div>
-          <div><strong>Contact:</strong> ${escapeHtml(String(contact))}</div>
-          <div><strong>Date Range:</strong> ${dateRange}</div>
-        </div>
-      </div>
-    `;
-    const thead = `<thead><tr>
-      <th>SR NO</th><th>ID</th><th>Type</th><th>Amount</th><th>Balance</th><th>Invoice No</th><th>Description</th><th>Date</th>
-    </tr></thead>`;
-    const tbody = '<tbody>' + displayRows.map((r, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${r.id}</td>
-        <td>${r.transactionType}</td>
-        <td>${Number(r.amount).toFixed(2)}</td>
-        <td>${Number(r.balanceAmount).toFixed(2)}</td>
-        <td>${r.invoiceNo ?? '-'}</td>
-        <td>${escapeHtml(r.description ?? '-')}</td>
-        <td>${new Date(r.createdAt).toLocaleDateString()}</td>
-      </tr>
-    `).join('') + '</tbody>';
-    w.document.write(`<html><head><title>Supplier Transactions</title>${styles}</head><body>${header}<table>${thead}${tbody}</table></body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
-    setTimeout(() => { try { w.close(); } catch {} }, 500);
+  const handleExportPDF = async () => {
+    if (!selectedSupplier) return;
+    
+    try {
+      const exportFilters: any = {
+        fromDate: filters.startDate,
+        toDate: filters.endDate,
+        transactionType: Array.from(filters.txnTypes)[0] || undefined,
+        minAmount: filters.minAmount || undefined,
+        maxAmount: filters.maxAmount || undefined,
+        search: supplierQuery || undefined,
+      };
+      
+      await supplierTransactionsApi.exportPDF(selectedSupplier.id, exportFilters);
+    } catch (error: any) {
+      console.error('PDF export failed:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to export PDF';
+      alert(errorMessage);
+    }
   };
 
   function escapeHtml(s: string) {
@@ -208,8 +170,8 @@ export const SupplierTransactionSection: React.FC = () => {
         <div className="flex items-center justify-between gap-2">
           <CardTitle>Supplier Transaction Report</CardTitle>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportCSV} disabled={!displayRows.length}>Generate CSV</Button>
-            <Button onClick={handleExportPDF} disabled={!displayRows.length}>Generate PDF</Button>
+            <Button variant="outline" onClick={handleExportCSV} disabled={!selectedSupplier}>Generate CSV</Button>
+            <Button onClick={handleExportPDF} disabled={!selectedSupplier}>Generate PDF</Button>
           </div>
         </div>
       </CardHeader>
@@ -260,9 +222,9 @@ export const SupplierTransactionSection: React.FC = () => {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-2 py-1 text-left">SR NO</th>
-                  <th className="px-2 py-1 text-left">ID</th>
                   <th className="px-2 py-1 text-left">Type</th>
                   <th className="px-2 py-1 text-left">Amount</th>
+                  <th className="px-2 py-1 text-left">Balance</th>
                   <th className="px-2 py-1 text-left">Invoice No</th>
                   <th className="px-2 py-1 text-left">Description</th>
                   <th className="px-2 py-1 text-left">Created At</th>
@@ -272,9 +234,9 @@ export const SupplierTransactionSection: React.FC = () => {
                 {displayRows.map((r, idx) => (
                   <tr key={r.id} className="border-t">
                     <td className="px-2 py-1">{idx + 1}</td>
-                    <td className="px-2 py-1">{r.id}</td>
                     <td className="px-2 py-1 capitalize">{r.transactionType}</td>
                     <td className="px-2 py-1">{Number(r.amount).toFixed(2)}</td>
+                    <td className="px-2 py-1">{Number(r.balanceAmount).toFixed(2)}</td>
                     <td className="px-2 py-1">{r.invoiceNo ?? '-'}</td>
                     <td className="px-2 py-1">{r.description ?? '-'}</td>
                     <td className="px-2 py-1">{new Date(r.createdAt).toLocaleDateString()}</td>

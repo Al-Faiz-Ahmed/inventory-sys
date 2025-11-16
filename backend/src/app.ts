@@ -13,6 +13,7 @@ import expenseRoutes from "./routes/expenseRoutes";
 import customerRoutes from "./routes/customerRoutes";
 import salesRoutes from "./routes/salesRoutes";
 import maintenanceRoutes from "./routes/maintenanceRoutes";
+import mainInventoryRoutes from "./routes/mainInventoryRoutes";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
+app.use("/api/main-inventory", mainInventoryRoutes);
 
 // Basic root route
 app.get("/", (_req, res) => {

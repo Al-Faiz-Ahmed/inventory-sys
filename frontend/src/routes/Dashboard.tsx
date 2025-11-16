@@ -66,9 +66,12 @@ export function Dashboard() {
 
         const netProfit = totalSales - totalPurchases - totalExpenses;
 
-        const sortedMain = [...main].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const currentBalance = sortedMain.length ? Number((sortedMain[0] as any).balanceAmount ?? 0) : 0;
-
+        const sortedMain = [...main.transactions].sort(
+  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+);
+const currentBalance = sortedMain.length
+  ? Number((sortedMain[0] as any).balanceAmount ?? 0)
+  : 0;
         setStats({
           totalProducts,
           lowStockProducts,

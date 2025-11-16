@@ -27,21 +27,30 @@ export function Reports() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/reports/sales')}>
           <CardHeader>
             <CardTitle>Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">Coming soon</div>
+            <div className="text-sm text-muted-foreground">View detailed sales reports and analytics</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/reports/main-account')}>
           <CardHeader>
             <CardTitle>Main Account</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">Coming soon</div>
+            <div className="text-sm text-muted-foreground">View detailed main account transactions</div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/reports/main-inventory')}>
+          <CardHeader>
+            <CardTitle>Main Inventory</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">View all product inventory transactions</div>
           </CardContent>
         </Card>
 

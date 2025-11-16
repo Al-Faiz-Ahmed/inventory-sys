@@ -111,20 +111,21 @@ export const createSale = async (req: Request, res: Response) => {
 
       const sale = inserted[0] as any;
 
-      // Create customer transaction of type 'sale'
-      await tx.insert(customerTransactions).values({
-        customerId: customerIdNum,
-        transactionType: 'sale' as any,
-        amount: totalStr,
-        referenceId: sale.id,
-        description: `regarding ${String(invoiceNumber).trim()}`,
-      });
-
       // Update customer balances: increase currentBalance and receivable by total
       const existingCust = await tx.select().from(customers).where(eq(customers.id, customerIdNum)).limit(1);
       const cur = existingCust[0] as any;
       const newBalance = (Number(cur.currentBalance) + Number(totalStr)).toFixed(2);
       const newRecv = (Number(cur.receivable) + Number(totalStr)).toFixed(2);
+
+      // Create customer transaction of type 'sale' with running balance
+      await tx.insert(customerTransactions).values({
+        customerId: customerIdNum,
+        transactionType: 'sale' as any,
+        amount: totalStr,
+        balanceAmount: newBalance,
+        referenceId: sale.id,
+        description: `regarding ${String(invoiceNumber).trim()}`,
+      });
 
       await tx.update(customers)
         .set({
