@@ -14,7 +14,6 @@ export const clearAllData = async (_req: Request, res: Response) => {
       "customer_transactions",
       "customers",
       "expenses",
-      "expense_categories",
       "products",
       "product_categories",
       "main_account",
