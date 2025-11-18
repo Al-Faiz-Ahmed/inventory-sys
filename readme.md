@@ -19,10 +19,10 @@ Make sure the following software is installed and added to your system environme
 Project Structure
 ------------------------------------------------------------
 
-inventory-sys/
- ├── backend/
- ├── frontend/
- ├── shared/
+inventory-sys/\
+ ├── backend/\
+ ├── frontend/\
+ ├── shared/\
  └── package.json
 
 ------------------------------------------------------------
@@ -31,7 +31,9 @@ inventory-sys/
 
 Open CMD inside the inventory-sys folder and run:
 
+```cmd
 yarn install-all
+```
 
 This installs all backend and frontend dependencies automatically.
 
@@ -45,29 +47,31 @@ inventory-sys/backend/.env
 
 Add the following values:
 
+```env
 DATABASE_URL=postgresql://[username]:[password]@localhost:5432/[DATABASE_NAME]
 PORT=4000
 JWT_SECRET=please_change_this_to_a_strong_secret_in_prod
 JWT_EXPIRES_IN=30d
+```
 
 Replace the username, password, and database name with your actual PostgreSQL details.
 
 ------------------------------------------------------------
 3. Generate and Migrate Database Tables
 ------------------------------------------------------------
-
+\
 Run this command in CMD:
-
+```cmd
 cd backend && yarn db:generate && yarn db:migrate && cd..
-
+```
 This will create all database tables inside your PostgreSQL database.
 
 ------------------------------------------------------------
 4. Insert Default Expense Categories
 ------------------------------------------------------------
-
+\
 Open pgAdmin, connect to your database, and execute this SQL script:
-
+```sql
 INSERT INTO expense_categories (name, description) VALUES
 ('Office Rent', 'Monthly rent for office or shop premises'),
 ('Utilities', 'Electricity, gas, water bills'),
@@ -83,31 +87,31 @@ INSERT INTO expense_categories (name, description) VALUES
 ('Insurance', 'Business, stock, or vehicle insurance'),
 ('Website & Hosting', 'Domain, hosting, and server costs'),
 ('Miscellaneous', 'Other small expenses not categorized');
-
+```
 ------------------------------------------------------------
 5. Build and Start Backend
 ------------------------------------------------------------
-
+\
 Build backend:
-
+```cmd
 cd backend && yarn build
-
+```
 Start backend:
-
+```cmd
 cd backend && yarn start
-
+```
 ------------------------------------------------------------
 6. Build and Preview Frontend
 ------------------------------------------------------------
-
+\
 Build frontend:
-
+```cmd
 cd frontend && yarn build
-
+```
 Preview frontend:
-
+```cmd
 cd frontend && yarn preview
-
+```
 ------------------------------------------------------------
 Done
 ------------------------------------------------------------
